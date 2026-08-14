@@ -1,6 +1,6 @@
-# Yoshlar Direction
+# Yoshlar Radar
 
-Lovable Prompt — Youth Employment Monitoring & Routing System
+Youth Employment Monitoring & Routing System
 
 Build "Yoshlar Radar" — an internal government web dashboard for monitoring youth employment and routing young people to support programs at the mahalla (neighborhood) and district level. This is a hackathon prototype for the Mirzo-Ulugbek district administration (hokimiyat) in Tashkent, Uzbekistan. The entire UI must be in Russian. All data is synthetic and generated client-side — no real personal data anywhere.
 
@@ -51,18 +51,6 @@ Header shows current date and a fake "Последняя синхронизац�
 Tech
 
 React + TypeScript + Tailwind + shadcn/ui + recharts + react-leaflet. All state client-side (context or zustand). No backend, no real auth. Everything must work with the generated demo data out of the box.
-
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://yoshlar-radar-connect.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/7b93245e-43b7-428d-a46b-cd20b77edbca).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
 ## Development
 

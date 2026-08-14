@@ -168,3 +168,23 @@
   border-radius: var(--radius);
   font-family: var(--font-sans);
 }
+
+.mahalla-zone {
+  transition:
+    fill-opacity 0.15s ease,
+    stroke-opacity 0.15s ease;
+  cursor: pointer;
+}
+
+/* Подписи зон: Leaflet рисует свою рамку и «хвостик» — убираем их,
+   чтобы читалась только полупрозрачная подложка из Tailwind-классов. */
+.leaflet-tooltip.mahalla-zone-label {
+  background-color: rgb(255 255 255 / 0.8);
+  color: var(--color-foreground);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.leaflet-tooltip.mahalla-zone-label::before {
+  display: none;
+}
