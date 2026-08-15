@@ -26,7 +26,10 @@ import { toPerson, toPersonListItem, type PersonRow } from "../lib/serialize.js"
 
 // Все скалярные колонки people + имя махалли из JOIN — ровно то, что ждёт
 // toPersonListItem/toPerson.
-const personColumns = { ...getTableColumns(people), mahallaName: mahallas.name };
+export const personColumns = {
+  ...getTableColumns(people),
+  mahallaName: mahallas.name,
+};
 
 // Карточка человека: строка + история. Используется и здесь (п.7), и в
 // мутациях (пп.8–11), которые возвращают тот же полный Person.
@@ -93,7 +96,7 @@ const SORT_EXPR: Record<ListQuery["sort"], SQL> = {
 // own_mahalla → только своя махалля, чужой ?mahalla= = 403;
 // routed_only → только направленные на программу;
 // all_mahallas / all_data → без ограничений.
-function scopeConditions(scope: Scope, requestedMahalla?: string): SQL[] {
+export function scopeConditions(scope: Scope, requestedMahalla?: string): SQL[] {
   const conds: SQL[] = [];
 
   if (scope.kind === "own_mahalla") {

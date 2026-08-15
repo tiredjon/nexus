@@ -6,6 +6,7 @@ import { healthRoutes } from "./routes/health.js";
 import { metaRoutes } from "./routes/meta.js";
 import { mutationRoutes } from "./routes/mutations.js";
 import { peopleRoutes } from "./routes/people.js";
+import { statsRoutes } from "./routes/stats.js";
 
 // buildApp() собирает приложение без listen() — тесты гоняют его через
 // app.inject(), а index.ts поднимает сеть отдельно.
@@ -23,6 +24,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(metaRoutes, { prefix: "/api" });
   await app.register(peopleRoutes, { prefix: "/api" });
   await app.register(mutationRoutes, { prefix: "/api" });
+  await app.register(statsRoutes, { prefix: "/api" });
 
   return app;
 }
