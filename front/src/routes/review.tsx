@@ -1,10 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Info } from "lucide-react";
-import { useStore } from "@/lib/store";
-import { REVIEW_STATUSES, daysAgo, type ReviewStatus } from "@/lib/data";
-import { EmptyState, PageHeader, StatusBadge } from "@/components/common";
+import { Info, Search } from "lucide-react";
+import { useStore, useRoleConfig } from "@/lib/store";
+import { MAHALLAS, REVIEW_STATUSES, STATUSES, daysAgo, isStale, shortName, type ReviewStatus } from "@/lib/data";
+import { computePriorityLevel, compareByPriority, type PriorityLevel } from "@/lib/person-compute";
+import { isOwnMahallaScope } from "@/lib/permissions";
+import { EmptyState, PageHeader, PriorityBadge, StatusBadge, YR_CARD, YR_CARD_INTERACTIVE } from "@/components/common";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/review")({
@@ -29,16 +42,74 @@ const COLUMN_TONE: Record<ReviewStatus, string> = {
   "Флаг снят": "bg-success",
 };
 
+const DEFAULT_AGES: [number, number] = [18, 30];
+
 function Review() {
-  const { scopedPeople, setReviewStatus } = useStore();
+  const { scopedPeople, session, setReviewStatus } = useStore();
+  const roleConfig = useRoleConfig();
+  const canMove = roleConfig?.can.moveKanban ?? false;
+  const locked = session ? isOwnMahallaScope(session.role) : false;
+
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<ReviewStatus | null>(null);
+  const [q, setQ] = useState("");
+  const [mahalla, setMahalla] = useState<string>("all");
+  const [status, setStatus] = useState<string>("all");
+  const [ages, setAges] = useState<number[]>([...DEFAULT_AGES]);
+  const [overdue30, setOverdue30] = useState(false);
+  const [onlyStale, setOnlyStale] = useState(false);
+  const [socialRegistry, setSocialRegistry] = useState(false);
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
-  const cases = scopedPeople.filter((p) => p.neet || p.neetReviewStatus !== "Флаг снят");
+  const baseCases = scopedPeople.filter((p) => p.neet || p.neetReviewStatus !== "Флаг снят");
+
+  const filteredCases = useMemo(() => {
+    const [minA, maxA] = [ages[0] ?? 18, ages[1] ?? 30];
+    return baseCases
+      .filter((p) => p.fullName.toLowerCase().includes(q.trim().toLowerCase()))
+      .filter((p) => (locked || mahalla === "all" ? true : p.mahalla === mahalla))
+      .filter((p) => (status === "all" ? true : p.status === status))
+      .filter((p) => p.age >= minA && p.age <= maxA)
+      .filter((p) => (overdue30 ? daysAgo(p.lastUpdate) > 30 : true))
+      .filter((p) => (onlyStale ? isStale(p) : true))
+      .filter((p) =>
+        socialRegistry
+          ? p.inYoshlarDaftari || p.inAyollarDaftari || p.familyInTemirDaftar
+          : true,
+      )
+      .filter((p) =>
+        priorityFilter === "all" ? true : computePriorityLevel(p) === priorityFilter,
+      );
+  }, [baseCases, q, mahalla, status, ages, overdue30, onlyStale, socialRegistry, priorityFilter, locked]);
+
+  const hasActiveFilters =
+    q.trim().length > 0 ||
+    (!locked && mahalla !== "all") ||
+    status !== "all" ||
+    ages[0] !== DEFAULT_AGES[0] ||
+    ages[1] !== DEFAULT_AGES[1] ||
+    overdue30 ||
+    onlyStale ||
+    socialRegistry ||
+    priorityFilter !== "all";
+
+  const resetFilters = () => {
+    setQ("");
+    setMahalla("all");
+    setStatus("all");
+    setAges([...DEFAULT_AGES]);
+    setOverdue30(false);
+    setOnlyStale(false);
+    setSocialRegistry(false);
+    setPriorityFilter("all");
+  };
 
   return (
     <div>
-      <PageHeader title="Требуют внимания" subtitle={`Случаев в работе: ${cases.length}`} />
+      <PageHeader
+        title="Требуют внимания"
+        subtitle={`Случаев в работе: ${filteredCases.length}`}
+      />
 
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
         <Info className="mt-0.5 size-4 shrink-0 text-warning" />
@@ -48,29 +119,127 @@ function Review() {
         </p>
       </div>
 
+      <div className="mb-5 yr-card p-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Поиск по ФИО"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          <Select
+            value={locked ? session!.mahalla! : mahalla}
+            onValueChange={setMahalla}
+            disabled={locked}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Махалля" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все махалли</SelectItem>
+              {MAHALLAS.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger>
+              <SelectValue placeholder="Статус" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все статусы</SelectItem>
+              {STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Приоритет" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все</SelectItem>
+              {(["Высокий", "Средний", "Обычный"] as PriorityLevel[]).map((level) => (
+                <SelectItem key={level} value={level}>
+                  {level}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="px-1 md:col-span-2 xl:col-span-1">
+            <div className="mb-1 text-xs text-muted-foreground">
+              Возраст: {ages[0]}–{ages[1]} лет
+            </div>
+            <Slider min={18} max={30} step={1} value={ages} onValueChange={setAges} />
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-5 border-t border-border pt-4 text-sm">
+          <div className="flex flex-wrap gap-5">
+            <Toggle
+              label="просрочено более 30 дней"
+              checked={overdue30}
+              onChange={setOverdue30}
+            />
+            <Toggle label="устаревшие данные" checked={onlyStale} onChange={setOnlyStale} />
+            <Toggle
+              label="состоит в социальных реестрах"
+              checked={socialRegistry}
+              onChange={setSocialRegistry}
+            />
+          </div>
+          {hasActiveFilters && (
+            <Button variant="outline" size="sm" onClick={resetFilters}>
+              Сбросить
+            </Button>
+          )}
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-4">
         {REVIEW_STATUSES.map((col) => {
-          const items = cases.filter((p) => p.neetReviewStatus === col);
+          const items = filteredCases
+            .filter((p) => p.neetReviewStatus === col)
+            .sort(compareByPriority);
           return (
             <div
               key={col}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setOver(col);
-              }}
-              onDragLeave={() => setOver((o) => (o === col ? null : o))}
-              onDrop={() => {
-                if (dragId) {
-                  const person = cases.find((p) => p.id === dragId);
-                  setReviewStatus(dragId, col);
-                  toast.success(`Перемещено: ${col}`, { description: person?.fullName });
-                }
-                setDragId(null);
-                setOver(null);
-              }}
+              onDragOver={
+                canMove
+                  ? (e) => {
+                      e.preventDefault();
+                      setOver(col);
+                    }
+                  : undefined
+              }
+              onDragLeave={canMove ? () => setOver((o) => (o === col ? null : o)) : undefined}
+              onDrop={
+                canMove
+                  ? () => {
+                      if (dragId) {
+                        const person = filteredCases.find((p) => p.id === dragId);
+                        setReviewStatus(dragId, col);
+                        toast.success(`Перемещено: ${col}`, { description: person?.fullName });
+                      }
+                      setDragId(null);
+                      setOver(null);
+                    }
+                  : undefined
+              }
               className={cn(
-                "rounded-xl border bg-muted/30 p-3 transition-colors",
-                over === col ? "border-primary bg-primary/5" : "border-border",
+                "yr-card max-h-[calc(100vh-16rem)] bg-muted/30 p-3 transition-colors duration-150",
+                over === col ? "border-primary bg-primary/5" : "",
               )}
             >
               <div className="mb-3 flex items-center gap-2 px-1">
@@ -81,25 +250,31 @@ function Review() {
                 </span>
               </div>
 
-              <div className="space-y-2">
-                {items.length === 0 && <EmptyState text="Пусто" />}
+              <div className="yr-scrollbar yr-stagger max-h-[min(520px,calc(100vh-20rem))] space-y-2 overflow-y-auto pr-1">
+                {items.length === 0 && (
+                  <EmptyState text="В этой колонке пока нет случаев" />
+                )}
                 {items.slice(0, 40).map((p) => (
                   <article
                     key={p.id}
-                    draggable
-                    onDragStart={() => setDragId(p.id)}
-                    onDragEnd={() => setDragId(null)}
+                    draggable={canMove}
+                    onDragStart={canMove ? () => setDragId(p.id) : undefined}
+                    onDragEnd={canMove ? () => setDragId(null) : undefined}
                     className={cn(
-                      "cursor-grab rounded-xl border border-border bg-card p-3 active:cursor-grabbing",
+                      YR_CARD_INTERACTIVE + " p-3",
+                      canMove && "cursor-grab active:cursor-grabbing",
                       dragId === p.id && "opacity-50",
                     )}
                   >
-                    <div className="text-sm font-medium">{p.fullName}</div>
+                    <div className="text-sm font-medium">{shortName(p)}</div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
                       {p.age} лет · {p.mahalla}
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <StatusBadge status={p.status} />
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <PriorityBadge person={p} />
+                        <StatusBadge status={p.status} />
+                      </div>
                       <span className="text-xs text-muted-foreground">
                         {daysAgo(p.lastUpdate)} дн.
                       </span>
@@ -107,7 +282,7 @@ function Review() {
                     <Link
                       to="/person/$id"
                       params={{ id: p.id }}
-                      className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+                      className="mt-2 inline-block text-xs font-medium text-primary transition-colors duration-150 hover:underline"
                     >
                       Открыть профиль →
                     </Link>
@@ -119,5 +294,22 @@ function Review() {
         })}
       </div>
     </div>
+  );
+}
+
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2">
+      <Checkbox checked={checked} onCheckedChange={(v) => onChange(Boolean(v))} />
+      {label}
+    </label>
   );
 }

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as MapRouteImport } from './routes/map'
+import { Route as ProgramsRouteImport } from './routes/programs'
 import { Route as RegistryRouteImport } from './routes/registry'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as PersonIdRouteImport } from './routes/person.$id'
@@ -29,6 +30,11 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
 const MapRoute = MapRouteImport.update({
   id: '/map',
   path: '/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProgramsRoute = ProgramsRouteImport.update({
+  id: '/programs',
+  path: '/programs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegistryRoute = RegistryRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/map': typeof MapRoute
+  '/programs': typeof ProgramsRoute
   '/registry': typeof RegistryRoute
   '/review': typeof ReviewRoute
   '/person/$id': typeof PersonIdRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/map': typeof MapRoute
+  '/programs': typeof ProgramsRoute
   '/registry': typeof RegistryRoute
   '/review': typeof ReviewRoute
   '/person/$id': typeof PersonIdRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/map': typeof MapRoute
+  '/programs': typeof ProgramsRoute
   '/registry': typeof RegistryRoute
   '/review': typeof ReviewRoute
   '/person/$id': typeof PersonIdRoute
@@ -75,14 +84,28 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/analytics' | '/map' | '/registry' | '/review' | '/person/$id'
+    | '/'
+    | '/analytics'
+    | '/map'
+    | '/programs'
+    | '/registry'
+    | '/review'
+    | '/person/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/analytics' | '/map' | '/registry' | '/review' | '/person/$id'
+  to:
+    | '/'
+    | '/analytics'
+    | '/map'
+    | '/programs'
+    | '/registry'
+    | '/review'
+    | '/person/$id'
   id:
     | '__root__'
     | '/'
     | '/analytics'
     | '/map'
+    | '/programs'
     | '/registry'
     | '/review'
     | '/person/$id'
@@ -92,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
   MapRoute: typeof MapRoute
+  ProgramsRoute: typeof ProgramsRoute
   RegistryRoute: typeof RegistryRoute
   ReviewRoute: typeof ReviewRoute
   PersonIdRoute: typeof PersonIdRoute
@@ -118,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/map'
       fullPath: '/map'
       preLoaderRoute: typeof MapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/programs': {
+      id: '/programs'
+      path: '/programs'
+      fullPath: '/programs'
+      preLoaderRoute: typeof ProgramsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/registry': {
@@ -148,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   MapRoute: MapRoute,
+  ProgramsRoute: ProgramsRoute,
   RegistryRoute: RegistryRoute,
   ReviewRoute: ReviewRoute,
   PersonIdRoute: PersonIdRoute,

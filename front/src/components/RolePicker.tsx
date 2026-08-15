@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Radar, Building2, MapPinned } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Radar, Building2, MapPin, Users, Briefcase, ShieldCheck } from "lucide-react";
 import { MAHALLAS, type Mahalla } from "@/lib/data";
+import { ROLE_CONFIG, MAIN_ROLES, type Role } from "@/lib/permissions";
 import { useStore } from "@/lib/store";
 import { Button } from "./ui/button";
 import {
@@ -12,10 +14,27 @@ import {
 } from "./ui/select";
 import { cn } from "@/lib/utils";
 
+const ROLE_ICONS: Record<(typeof MAIN_ROLES)[number], React.ReactNode> = {
+  mahalla_officer: <MapPin className="size-5" />,
+  youth_rep: <Users className="size-5" />,
+  district_officer: <Building2 className="size-5" />,
+  employment_specialist: <Briefcase className="size-5" />,
+};
+
+const ROLE_SHORT_LABELS: Record<(typeof MAIN_ROLES)[number], string> = {
+  mahalla_officer: "Сотрудник махалли",
+  youth_rep: "Представитель по молодёжи",
+  district_officer: "Сотрудник хокимията района",
+  employment_specialist: "Специалист по занятости",
+};
+
 export function RolePicker() {
   const { signIn } = useStore();
-  const [role, setRole] = useState<"mahalla" | "district">("district");
+  const navigate = useNavigate();
+  const [role, setRole] = useState<Role>("district_officer");
   const [mahalla, setMahalla] = useState<Mahalla>(MAHALLAS[0]);
+
+  const config = ROLE_CONFIG[role];
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-12">
@@ -33,24 +52,40 @@ export function RolePicker() {
         </div>
 
         <p className="mt-6 text-sm font-medium">Выберите роль для входа</p>
-        <div className="mt-3 grid gap-3">
-          <RoleCard
-            active={role === "mahalla"}
-            onClick={() => setRole("mahalla")}
-            icon={<MapPinned className="size-5" />}
-            title="Инспектор махалли"
-            desc="Доступ только к данным своей махалли"
-          />
-          <RoleCard
-            active={role === "district"}
-            onClick={() => setRole("district")}
-            icon={<Building2 className="size-5" />}
-            title="Сотрудник хокимията района"
-            desc="Доступ ко всем 12 махаллям района"
-          />
+        <div className="mt-3 grid gap-2">
+          {MAIN_ROLES.map((r) => (
+            <RoleCard
+              key={r}
+              active={role === r}
+              onClick={() => setRole(r)}
+              icon={ROLE_ICONS[r]}
+              title={ROLE_SHORT_LABELS[r]}
+            />
+          ))}
         </div>
 
-        {role === "mahalla" && (
+        <p className="mt-2 text-center text-xs text-muted-foreground">{config.description}</p>
+
+        <div className="mt-5 border-t border-border pt-5">
+          <p className="text-center text-xs text-muted-foreground">Технический доступ</p>
+          <button
+            type="button"
+            onClick={() => setRole("admin")}
+            className={cn(
+              "mt-2 flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left",
+              role === "admin"
+                ? "border-muted-foreground/40 bg-muted/50"
+                : "border-border bg-muted/20 text-muted-foreground",
+            )}
+          >
+            <ShieldCheck className="size-5 shrink-0 text-muted-foreground" />
+            <span className="text-sm font-semibold text-muted-foreground">
+              {ROLE_CONFIG.admin.shortLabel}
+            </span>
+          </button>
+        </div>
+
+        {config.needsMahallaSelect && (
           <div className="mt-4">
             <label className="text-sm font-medium">Махалля</label>
             <Select value={mahalla} onValueChange={(v) => setMahalla(v as Mahalla)}>
@@ -71,7 +106,13 @@ export function RolePicker() {
         <Button
           className="mt-6 w-full"
           size="lg"
-          onClick={() => signIn({ role, mahalla: role === "mahalla" ? mahalla : null })}
+          onClick={() => {
+            signIn({
+              role,
+              mahalla: config.needsMahallaSelect ? mahalla : null,
+            });
+            navigate({ to: config.landing });
+          }}
         >
           Войти в систему
         </Button>
@@ -90,29 +131,24 @@ function RoleCard({
   onClick,
   icon,
   title,
-  desc,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   title: string;
-  desc: string;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+        "flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-colors duration-150",
         active ? "border-primary bg-primary/5" : "border-border hover:bg-muted/60",
       )}
     >
-      <span className={cn("mt-0.5", active ? "text-primary" : "text-muted-foreground")}>
+      <span className={cn("shrink-0", active ? "text-primary" : "text-muted-foreground")}>
         {icon}
       </span>
-      <span>
-        <span className="block text-sm font-semibold">{title}</span>
-        <span className="block text-xs text-muted-foreground">{desc}</span>
-      </span>
+      <span className="text-sm font-semibold">{title}</span>
     </button>
   );
 }
