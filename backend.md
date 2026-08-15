@@ -568,7 +568,7 @@ jobs:
 Отмечай здесь по завершении каждой сессии: `[x]`, номер PR, что сделано,
 отклонения от спеки.
 
-- [x] **S1** — скаффолд, схема БД, `/health`, CI. PR: #PENDING
+- [x] **S1** — скаффолд, схема БД, `/health`, CI. PR: #1
   - Создан каркас `back/`: `package.json` (пины версий из §1) + закоммичен
     `package-lock.json`, `tsconfig.json` (ESM/strict/noEmit), `vitest.config.ts`
     (`fileParallelism:false`), `drizzle.config.ts`, `docker-compose.yml`
