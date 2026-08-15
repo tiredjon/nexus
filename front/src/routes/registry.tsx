@@ -1,9 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, ArrowUpDown } from "lucide-react";
-import { useStore } from "@/lib/store";
-import { MAHALLAS, STATUSES, isStale, type EmploymentStatus } from "@/lib/data";
-import { EmptyState, FreshnessDot, NeetBadge, PageHeader, StatusBadge } from "@/components/common";
+import { Search, ArrowUpDown, Plus } from "lucide-react";
+import { useStore, useRoleConfig } from "@/lib/store";
+import { MAHALLAS, STATUSES, EDUCATION_LEVELS, isStale, type EmploymentStatus } from "@/lib/data";
+import { isOwnMahallaScope } from "@/lib/permissions";
+import { EmptyState, FreshnessDot, NeetBadge, PageHeader, StatusBadge, YR_CARD } from "@/components/common";
+import { CreateRecordDialog } from "@/components/CreateRecordDialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -36,18 +38,24 @@ export const Route = createFileRoute("/registry")({
 
 function Registry() {
   const { scopedPeople, session } = useStore();
+  const roleConfig = useRoleConfig();
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const locked = session?.role === "mahalla";
+  const locked = session ? isOwnMahallaScope(session.role) : false;
 
   const [q, setQ] = useState("");
   const [mahalla, setMahalla] = useState<string>(search.mahalla ?? "all");
   const [status, setStatus] = useState<string>("all");
+  const [education, setEducation] = useState<string>("all");
   const [ages, setAges] = useState<number[]>([18, 30]);
   const [onlyNeet, setOnlyNeet] = useState(false);
   const [onlySupport, setOnlySupport] = useState(false);
   const [onlyStale, setOnlyStale] = useState(false);
-  const [sort, setSort] = useState<{ key: "fullName" | "age" | "mahalla" | "lastUpdate"; dir: 1 | -1 }>({
+  const [createOpen, setCreateOpen] = useState(false);
+  const [sort, setSort] = useState<{
+    key: "fullName" | "age" | "mahalla" | "lastUpdate" | "educationLevel";
+    dir: 1 | -1;
+  }>({
     key: "fullName",
     dir: 1,
   });
@@ -58,17 +66,29 @@ function Registry() {
       .filter((p) => p.fullName.toLowerCase().includes(q.trim().toLowerCase()))
       .filter((p) => (locked || mahalla === "all" ? true : p.mahalla === mahalla))
       .filter((p) => (status === "all" ? true : p.status === status))
+      .filter((p) => (education === "all" ? true : p.educationLevel === education))
       .filter((p) => p.age >= minA && p.age <= maxA)
       .filter((p) => (onlyNeet ? p.neet : true))
       .filter((p) => (onlySupport ? p.needsSupport : true))
       .filter((p) => (onlyStale ? isStale(p) : true))
       .sort((a, b) => String(a[sort.key]).localeCompare(String(b[sort.key]), "ru") * sort.dir);
-  }, [scopedPeople, q, mahalla, status, ages, onlyNeet, onlySupport, onlyStale, sort, locked]);
+  }, [scopedPeople, q, mahalla, status, education, ages, onlyNeet, onlySupport, onlyStale, sort, locked]);
+
+  const resetFilters = () => {
+    setQ("");
+    setMahalla("all");
+    setStatus("all");
+    setEducation("all");
+    setAges([18, 30]);
+    setOnlyNeet(false);
+    setOnlySupport(false);
+    setOnlyStale(false);
+  };
 
   const th = (key: typeof sort.key, label: string) => (
     <th className="px-4 py-3 text-left font-medium">
       <button
-        className="inline-flex items-center gap-1 hover:text-foreground"
+        className="inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground"
         onClick={() => setSort((s) => ({ key, dir: s.key === key && s.dir === 1 ? -1 : 1 }))}
       >
         {label} <ArrowUpDown className="size-3" />
@@ -78,10 +98,30 @@ function Registry() {
 
   return (
     <div>
-      <PageHeader title="Реестр молодёжи" subtitle={`Найдено записей: ${rows.length}`} />
+      <PageHeader
+        title="Реестр молодёжи"
+        subtitle={
+          roleConfig?.scope === "routed_only"
+            ? "Молодёжь, направленная на программы поддержки"
+            : `Найдено записей: ${rows.length}`
+        }
+      >
+        {roleConfig?.can.createRecord && (
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+          >
+            <Plus className="size-3.5" />
+            Внести запись
+          </button>
+        )}
+      </PageHeader>
 
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <CreateRecordDialog open={createOpen} onOpenChange={setCreateOpen} />
+
+      <div className={`${YR_CARD} p-4`}>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -120,7 +160,21 @@ function Registry() {
             </SelectContent>
           </Select>
 
-          <div className="px-1">
+          <Select value={education} onValueChange={setEducation}>
+            <SelectTrigger>
+              <SelectValue placeholder="Уровень образования" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все уровни</SelectItem>
+              {EDUCATION_LEVELS.map((level) => (
+                <SelectItem key={level} value={level}>
+                  {level}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="px-1 md:col-span-2 xl:col-span-1">
             <div className="mb-1 text-xs text-muted-foreground">
               Возраст: {ages[0]}–{ages[1]} лет
             </div>
@@ -135,14 +189,15 @@ function Registry() {
         </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
-        <div className="overflow-x-auto">
+      <div className={`mt-4 overflow-hidden ${YR_CARD}`}>
+        <div className="yr-scrollbar overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
               <tr>
                 {th("fullName", "ФИО")}
                 {th("age", "Возраст")}
                 {th("mahalla", "Махалля")}
+                {th("educationLevel", "Образование")}
                 <th className="px-4 py-3 text-left font-medium">Статус</th>
                 <th className="px-4 py-3 text-left font-medium">Деятельность</th>
                 {th("lastUpdate", "Актуальность")}
@@ -153,7 +208,7 @@ function Registry() {
                 <tr
                   key={p.id}
                   onClick={() => navigate({ to: "/person/$id", params: { id: p.id } })}
-                  className="cursor-pointer border-b border-border/60 last:border-0 hover:bg-muted/50"
+                  className="cursor-pointer border-b border-border/60 transition-colors duration-150 last:border-0 hover:bg-muted/50"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -161,8 +216,9 @@ function Registry() {
                       {p.neet && <NeetBadge />}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.age}</td>
+                  <td className="px-4 py-3 tabular-nums text-muted-foreground">{p.age}</td>
                   <td className="px-4 py-3 text-muted-foreground">{p.mahalla}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{p.educationLevel}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={p.status as EmploymentStatus} />
                   </td>
@@ -175,7 +231,13 @@ function Registry() {
             </tbody>
           </table>
         </div>
-        {rows.length === 0 && <EmptyState text="По заданным фильтрам записи не найдены." />}
+        {rows.length === 0 && (
+          <EmptyState
+            text="По заданным фильтрам записи не найдены"
+            actionLabel="Сбросить фильтры"
+            onAction={resetFilters}
+          />
+        )}
         {rows.length > 150 && (
           <div className="border-t border-border p-3 text-center text-xs text-muted-foreground">
             Показаны первые 150 записей из {rows.length}. Уточните фильтры.

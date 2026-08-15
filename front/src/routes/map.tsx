@@ -3,6 +3,7 @@ import { lazy, Suspense, useState } from "react";
 import { Info } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { MAHALLAS, type Mahalla } from "@/lib/data";
+import { isOwnMahallaScope } from "@/lib/permissions";
 import { mahallaColor, type ZoneColorMode } from "@/lib/mahalla-colors";
 import { PageHeader } from "@/components/common";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -32,7 +33,9 @@ function MapPage() {
   // набор территорий. Статусная (красно-оранжевая) шкала — по переключателю.
   const [colorMode, setColorMode] = useState<ZoneColorMode>("mahalla");
   const list: Mahalla[] =
-    session?.role === "mahalla" && session.mahalla ? [session.mahalla] : [...MAHALLAS];
+    session && isOwnMahallaScope(session.role) && session.mahalla
+      ? [session.mahalla]
+      : [...MAHALLAS];
 
   const stats: MahallaStat[] = list.map((m) => {
     const people = scopedPeople.filter((p) => p.mahalla === m);

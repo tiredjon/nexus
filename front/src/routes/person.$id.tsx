@@ -10,10 +10,15 @@ import {
   Store,
   BookOpen,
   Dot,
+  Pencil,
 } from "lucide-react";
-import { useStore } from "@/lib/store";
-import { PROGRAMS, formatDate, daysAgo, type Person, type Program } from "@/lib/data";
+import { useStore, useRoleConfig } from "@/lib/store";
+import { PROGRAMS, formatDate, daysAgo, formatWorkExperience, displayMaritalStatus, type Person, type Program } from "@/lib/data";
 import { EmptyState, NeetBadge, StatusBadge } from "@/components/common";
+import { EditPersonDialog, type AiPrefill } from "@/components/EditPersonDialog";
+import { FieldNoteSection } from "@/components/FieldNoteSection";
+import { RecommendationReason } from "@/components/RecommendationReason";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,52 +51,92 @@ export const Route = createFileRoute("/person/$id")({
   component: PersonPage,
 });
 
-type Suggestion = { program: Program; reason: string; icon: React.ElementType };
+type Suggestion = { program: Program; reason: string; icon: React.ElementType; priority: number };
 
-function suggestions(p: Person): Suggestion[] {
-  const list: Suggestion[] = [];
+function socialSuffix(p: Person) {
+  if (p.familyInTemirDaftar || p.isBreadwinner) {
+    return "; семья в социальном реестре — приоритет мерам с быстрым выходом на доход";
+  }
+  return "";
+}
+
+function suggestions(p: Person): Omit<Suggestion, "priority">[] {
   const jobless = p.status === "Безработный" || p.status === "Статус не уточнён";
-  if (jobless && !p.hasProfession)
+  const list: Suggestion[] = [];
+
+  if (p.graduationYear === null && p.status !== "Учится") {
     list.push({
-      program: "Профессиональное обучение",
-      reason: "Безработный, профессия не указана — требуется базовая профподготовка.",
-      icon: GraduationCap,
-    });
-  if (jobless && p.hasProfession)
-    list.push({
-      program: "Содействие в трудоустройстве",
-      reason: "Безработный, но есть профессиональные навыки — подбор вакансии и сопровождение.",
-      icon: Briefcase,
-    });
-  if (p.businessInterest)
-    list.push({
-      program: "Программа поддержки бизнеса",
-      reason: "Отмечен интерес к предпринимательству — субсидии и бизнес-наставничество.",
-      icon: Store,
-    });
-  if (p.droppedStudies)
-    list.push({
+      priority: 10,
       program: "Возвращение к обучению",
-      reason: "Обучение не завершено — восстановление в колледже или вузе.",
+      reason: `Образование не завершено (${p.educationLevel})${socialSuffix(p)}`,
       icon: BookOpen,
     });
-  if (list.length === 0)
+  }
+
+  if (p.desiredDirection === "Предпринимательство") {
     list.push({
-      program: "Молодёжная стажировка",
-      reason: "Устойчивый статус, но возможна поддержка карьерного роста через стажировку.",
+      priority: 20,
+      program: "Программа поддержки бизнеса",
+      reason: `Отмечен интерес к предпринимательству, состав семьи ${p.householdSize} чел.${socialSuffix(p)}`,
+      icon: Store,
+    });
+  }
+
+  if (jobless && p.skills.length === 0 && p.workExperienceMonths === 0) {
+    list.push({
+      priority: 30,
+      program: "Профессиональное обучение",
+      reason: `${p.age} лет, ${p.educationLevel}, опыта нет — требуется базовая профподготовка${socialSuffix(p)}`,
+      icon: GraduationCap,
+    });
+  }
+
+  if (jobless && p.skills.length > 0) {
+    list.push({
+      priority: 40,
+      program: "Содействие в трудоустройстве",
+      reason: `Есть навыки: ${p.skills.join(", ")}. Опыт ${formatWorkExperience(p.workExperienceMonths)} — подходит прямое трудоустройство${socialSuffix(p)}`,
       icon: Briefcase,
     });
-  return list;
+  }
+
+  if (list.length === 0) {
+    list.push({
+      priority: 100,
+      program: "Молодёжная стажировка",
+      reason: `Устойчивый статус; возможна поддержка карьерного роста${socialSuffix(p)}`,
+      icon: Briefcase,
+    });
+  }
+
+  const seen = new Set<Program>();
+  return list
+    .sort((a, b) => a.priority - b.priority)
+    .filter((s) => {
+      if (seen.has(s.program)) return false;
+      seen.add(s.program);
+      return true;
+    })
+    .map(({ priority: _, ...rest }) => rest);
 }
 
 function PersonPage() {
   const { id } = Route.useParams();
-  const { scopedPeople, routeToProgram, confirmStatus, requestClarification } = useStore();
+  const { scopedPeople, session, routeToProgram, confirmStatus, requestClarification } = useStore();
+  const roleConfig = useRoleConfig();
   const person = scopedPeople.find((p) => p.id === id);
 
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [aiPrefill, setAiPrefill] = useState<AiPrefill | null>(null);
   const [program, setProgram] = useState<Program>(PROGRAMS[0]);
   const [comment, setComment] = useState("");
+
+  const canParseNote =
+    session &&
+    (session.role === "mahalla_officer" ||
+      session.role === "youth_rep" ||
+      session.role === "admin");
 
   if (!person)
     return (
@@ -132,28 +177,123 @@ function PersonPage() {
               {daysAgo(person.lastUpdate)} дн. назад)
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                confirmStatus(person.id);
-                toast.success("Статус подтверждён", { description: "Событие добавлено в историю." });
-              }}
-            >
-              <CheckCircle2 className="size-4" /> Подтвердить статус (проверено)
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                requestClarification(person.id);
-                toast("Запрошено уточнение", { description: "Дело переведено в статус «На уточнении»." });
-              }}
-            >
-              <CircleHelp className="size-4" /> Запросить уточнение
-            </Button>
-          </div>
+          {(roleConfig?.can.confirmStatus ||
+            roleConfig?.can.requestClarification ||
+            roleConfig?.can.editProfile) && (
+            <div className="flex flex-wrap gap-2">
+              {roleConfig?.can.editProfile && (
+                <Button variant="outline" onClick={() => setEditOpen(true)}>
+                  <Pencil className="size-4" /> Редактировать
+                </Button>
+              )}
+              {roleConfig?.can.confirmStatus && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    confirmStatus(person.id);
+                    toast.success("Статус подтверждён", {
+                      description: "Событие добавлено в историю.",
+                    });
+                  }}
+                >
+                  <CheckCircle2 className="size-4" /> Подтвердить статус (проверено)
+                </Button>
+              )}
+              {roleConfig?.can.requestClarification && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    requestClarification(person.id);
+                    toast("Запрошено уточнение", {
+                      description: "Дело переведено в статус «На уточнении».",
+                    });
+                  }}
+                >
+                  <CircleHelp className="size-4" /> Запросить уточнение
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      <section className="mt-4">
+        <h2 className="mb-3 text-sm font-semibold">Сведения о человеке</h2>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <InfoCard title="Личные данные">
+            <InfoLine label="Дата рождения" value={formatDate(person.birthDate)} />
+            <InfoLine label="Пол" value={person.gender} />
+            <InfoLine label="Махалля" value={person.mahalla} />
+            <InfoLine label="Условная зона" value={person.streetBlock} />
+            <InfoLine label="Состав семьи" value={`${person.householdSize} чел.`} />
+            <InfoLine label="Семейное положение" value={displayMaritalStatus(person)} />
+            {person.isBreadwinner && (
+              <InfoLine label="Единственный кормилец" value="да" />
+            )}
+          </InfoCard>
+
+          <InfoCard title="Образование и навыки">
+            <InfoLine label="Уровень образования" value={person.educationLevel} />
+            <InfoLine label="Учебное заведение" value={person.educationInstitution} />
+            <InfoLine label="Специальность" value={person.specialty} />
+            {person.graduationYear != null && (
+              <InfoLine label="Год окончания" value={String(person.graduationYear)} />
+            )}
+            {person.skills.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs text-muted-foreground">Навыки</div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {person.skills.map((s) => (
+                    <Badge key={s} variant="secondary" className="font-normal">
+                      {s}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {person.languages.length > 0 && (
+              <InfoLine label="Языки" value={person.languages.join(", ")} />
+            )}
+            {person.hasDriverLicense && (
+              <InfoLine label="Водительские права" value="есть" />
+            )}
+          </InfoCard>
+
+          <InfoCard title="Занятость">
+            <InfoLine label="Текущий статус" value={person.status} />
+            <InfoLine label="Место работы/учёбы" value={person.activity !== "—" ? person.activity : null} />
+            {(person.status === "Работает" || person.status === "Предприниматель") && (
+              <InfoLine
+                label="Официальное оформление"
+                value={person.isFormalEmployment ? "да" : "нет"}
+              />
+            )}
+            <InfoLine
+              label="Опыт работы"
+              value={
+                person.workExperienceMonths > 0
+                  ? formatWorkExperience(person.workExperienceMonths)
+                  : null
+              }
+            />
+            <InfoLine label="Желаемое направление" value={person.desiredDirection} />
+          </InfoCard>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Источник последнего обновления: {person.lastUpdateSource} · Ответственный:{" "}
+          {person.responsibleOfficer}
+        </p>
+      </section>
+
+      {canParseNote && (
+        <FieldNoteSection
+          person={person}
+          onApply={(prefill) => {
+            setAiPrefill(prefill);
+            setEditOpen(true);
+          }}
+        />
+      )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-border bg-card p-6">
@@ -188,17 +328,23 @@ function PersonPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold">{s.program}</div>
-                    <p className="mt-1 text-xs text-muted-foreground">Основание: {s.reason}</p>
+                    <RecommendationReason person={person} program={s.program} />
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setProgram(s.program);
-                      setOpen(true);
-                    }}
-                  >
-                    Направить
-                  </Button>
+                  {roleConfig?.can.routeToProgram ? (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setProgram(s.program);
+                        setOpen(true);
+                      }}
+                    >
+                      Направить
+                    </Button>
+                  ) : (
+                    <span className="max-w-28 text-right text-xs text-muted-foreground">
+                      Направление выполняет представитель по работе с молодёжью
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -209,10 +355,21 @@ function PersonPage() {
             </p>
           )}
           <p className="mt-4 text-xs text-muted-foreground">
-            Рекомендации носят справочный характер. Решение принимает уполномоченный сотрудник.
+            Программы подбираются по формальным правилам. ИИ формирует пояснение. Решение о
+            направлении принимает уполномоченный сотрудник.
           </p>
         </section>
       </div>
+
+      <EditPersonDialog
+        person={person}
+        open={editOpen}
+        onOpenChange={(v) => {
+          setEditOpen(v);
+          if (!v) setAiPrefill(null);
+        }}
+        aiPrefill={aiPrefill}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -264,6 +421,25 @@ function PersonPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <div className="mt-3 space-y-1.5">{children}</div>
+    </div>
+  );
+}
+
+function InfoLine({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="text-sm">
+      <span className="text-muted-foreground">{label}: </span>
+      <span>{value}</span>
     </div>
   );
 }

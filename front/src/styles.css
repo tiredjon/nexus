@@ -161,6 +161,101 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+
+  a,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  summary {
+    @apply transition-colors duration-150;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    @apply outline-none ring-2 ring-blue-500/40 ring-offset-2 ring-offset-background;
+  }
+}
+
+@keyframes yr-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.yr-page-enter {
+  animation: yr-fade-up 200ms ease-out both;
+}
+
+.yr-stagger > * {
+  animation: yr-fade-up 200ms ease-out both;
+}
+
+.yr-stagger > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.yr-stagger > *:nth-child(2) {
+  animation-delay: 30ms;
+}
+.yr-stagger > *:nth-child(3) {
+  animation-delay: 60ms;
+}
+.yr-stagger > *:nth-child(4) {
+  animation-delay: 90ms;
+}
+.yr-stagger > *:nth-child(5) {
+  animation-delay: 120ms;
+}
+.yr-stagger > *:nth-child(6) {
+  animation-delay: 150ms;
+}
+.yr-stagger > *:nth-child(7) {
+  animation-delay: 180ms;
+}
+.yr-stagger > *:nth-child(8) {
+  animation-delay: 210ms;
+}
+
+.yr-card {
+  @apply rounded-xl border border-slate-200/60 bg-card shadow-sm;
+}
+
+.yr-card-interactive {
+  @apply transition-all duration-150 ease-out;
+}
+
+.yr-card-interactive:hover {
+  @apply -translate-y-px shadow-md;
+}
+
+.yr-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.75 0.02 260) transparent;
+}
+
+.yr-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.yr-scrollbar::-webkit-scrollbar-thumb {
+  background-color: oklch(0.75 0.02 260);
+  border-radius: 9999px;
+}
+
+.yr-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .leaflet-container {

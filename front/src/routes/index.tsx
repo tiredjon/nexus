@@ -15,9 +15,11 @@ import {
   YAxis,
 } from "recharts";
 import { Users, Briefcase, UserX, AlertTriangle, HelpCircle, Clock } from "lucide-react";
-import { useStore } from "@/lib/store";
-import { MAHALLAS, daysAgo, isStale, neetMonthlyTrend } from "@/lib/data";
-import { PageHeader, EmptyState, NeetBadge } from "@/components/common";
+import { useStore, useRoleConfig } from "@/lib/store";
+import { MAHALLAS, daysAgo, isStale, neetMonthlyTrend, shortName } from "@/lib/data";
+import { isOwnMahallaScope, getTerritoryLabel } from "@/lib/permissions";
+import { PageHeader, EmptyState, NeetBadge, YR_CARD, YR_CARD_INTERACTIVE } from "@/components/common";
+import { DashboardAiSummary } from "@/components/DashboardAiSummary";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -41,7 +43,8 @@ export const Route = createFileRoute("/")({
 const COLORS = ["#1d4ed8", "#059669", "#d97706", "#dc2626", "#64748b", "#7c3aed", "#0891b2"];
 
 function Dashboard() {
-  const { scopedPeople, session } = useStore();
+  const { scopedPeople, session, people, syncedAt } = useStore();
+  const roleConfig = useRoleConfig();
   const total = scopedPeople.length;
   const employed = scopedPeople.filter(
     (p) => p.status === "Работает" || p.status === "Предприниматель",
@@ -56,7 +59,9 @@ function Dashboard() {
   ).map(([name, value]) => ({ name, value }));
 
   const mahallas =
-    session?.role === "mahalla" && session.mahalla ? [session.mahalla] : [...MAHALLAS];
+    session && isOwnMahallaScope(session.role) && session.mahalla
+      ? [session.mahalla]
+      : [...MAHALLAS];
 
   const byMahalla = mahallas.map((m) => {
     const list = scopedPeople.filter((p) => p.mahalla === m);
@@ -78,6 +83,18 @@ function Dashboard() {
     .sort((a, b) => daysAgo(b.lastUpdate) - daysAgo(a.lastUpdate))
     .slice(0, 5);
 
+  const attentionByMahalla = [...MAHALLAS]
+    .map((m) => ({
+      mahalla: m,
+      count: people.filter(
+        (p) => p.mahalla === m && p.neet && p.neetReviewStatus === "Ожидает проверки",
+      ).length,
+    }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  const showNames = roleConfig?.can.seeNames !== false;
+
   const pct = (n: number) => (total ? Math.round((n / total) * 100) : 0);
 
   return (
@@ -85,13 +102,25 @@ function Dashboard() {
       <PageHeader
         title="Дашборд"
         subtitle={
-          session?.role === "mahalla"
-            ? `Махалля ${session.mahalla}`
-            : "Сводные показатели по 12 махаллям района"
+          session && isOwnMahallaScope(session.role)
+            ? getTerritoryLabel(session)
+            : session?.role === "employment_specialist"
+              ? "Молодёжь, направленная на программы поддержки"
+              : "Сводные показатели по 12 махаллям района"
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {session && (
+        <DashboardAiSummary
+          scopedPeople={scopedPeople}
+          allPeople={people}
+          role={session.role}
+          {...(session.mahalla ? { mahalla: session.mahalla } : {})}
+          syncedAt={syncedAt}
+        />
+      )}
+
+      <div className="yr-stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Kpi icon={Users} label="Всего молодёжи" value={total} tone="primary" />
         <Kpi
           icon={Briefcase}
@@ -165,7 +194,30 @@ function Dashboard() {
         </Card>
 
         <Card title="Требуют внимания">
-          {attention.length === 0 ? (
+          {!showNames ? (
+            attentionByMahalla.length === 0 ? (
+              <EmptyState text="Нет ожидающих проверки случаев NEET." />
+            ) : (
+              <>
+                <ul className="space-y-2">
+                  {attentionByMahalla.map((x) => (
+                    <li
+                      key={x.mahalla}
+                      className="flex items-center justify-between rounded-xl border border-border p-3"
+                    >
+                      <span className="text-sm font-medium">{x.mahalla}</span>
+                      <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-semibold text-danger">
+                        {x.count} {x.count === 1 ? "случай" : x.count < 5 ? "случая" : "случаев"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Персональные данные доступны сотрудникам махалли
+                </p>
+              </>
+            )
+          ) : attention.length === 0 ? (
             <EmptyState text="Нет ожидающих проверки случаев NEET." />
           ) : (
             <ul className="space-y-2">
@@ -177,7 +229,7 @@ function Dashboard() {
                     className="flex items-center justify-between rounded-xl border border-border p-3 transition-colors hover:bg-muted/60"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{p.fullName}</span>
+                      <span className="block truncate text-sm font-medium">{shortName(p)}</span>
                       <span className="block text-xs text-muted-foreground">
                         {p.mahalla} · {p.age} лет · ожидает {daysAgo(p.lastUpdate)} дн.
                       </span>
@@ -215,11 +267,11 @@ function Kpi({
   tone: keyof typeof TONES;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className={YR_CARD_INTERACTIVE + " p-5"}>
       <div className="flex items-start justify-between">
         <div>
           <div className="text-sm text-muted-foreground">{label}</div>
-          <div className="mt-2 text-3xl font-semibold tracking-tight">{value}</div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{value}</div>
           {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
         </div>
         <span className={`flex size-9 items-center justify-center rounded-lg ${TONES[tone]}`}>
@@ -240,8 +292,8 @@ function Card({
   className?: string;
 }) {
   return (
-    <section className={`rounded-xl border border-border bg-card p-5 ${className}`}>
-      <h2 className="mb-4 text-sm font-semibold">{title}</h2>
+    <section className={`${YR_CARD} p-5 ${className}`}>
+      <h2 className="mb-4 text-base font-medium">{title}</h2>
       {children}
     </section>
   );
