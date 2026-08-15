@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Inbox } from "lucide-react";
 import { daysAgo, type EmploymentStatus, type Person } from "@/lib/data";
+import { useLanguage, useLabels } from "@/lib/i18n";
 import {
   computePriorityLevel,
   computePriorityReasons,
@@ -29,6 +30,7 @@ const STATUS_STYLE: Record<EmploymentStatus, string> = {
 };
 
 export function StatusBadge({ status }: { status: EmploymentStatus }) {
+  const labels = useLabels();
   return (
     <span
       className={cn(
@@ -36,7 +38,7 @@ export function StatusBadge({ status }: { status: EmploymentStatus }) {
         STATUS_STYLE[status],
       )}
     >
-      {status}
+      {labels.status(status)}
     </span>
   );
 }
@@ -55,6 +57,7 @@ const PRIORITY_STYLE: Record<Exclude<PriorityLevel, "Обычный">, string> =
 };
 
 export function PriorityBadge({ person }: { person: Person }) {
+  const labels = useLabels();
   const level = computePriorityLevel(person);
   if (level === "Обычный") return null;
 
@@ -70,13 +73,13 @@ export function PriorityBadge({ person }: { person: Person }) {
               PRIORITY_STYLE[level],
             )}
           >
-            {level}
+            {labels.priority(level)}
           </span>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <ul className="space-y-1">
-            {reasons.map((r) => (
-              <li key={r}>• {r}</li>
+            {reasons.map((r, i) => (
+              <li key={i}>• {labels.priorityReason(r)}</li>
             ))}
           </ul>
         </TooltipContent>
@@ -86,12 +89,13 @@ export function PriorityBadge({ person }: { person: Person }) {
 }
 
 export function FreshnessDot({ person }: { person: Person }) {
+  const { t } = useLanguage();
   const d = daysAgo(person.lastUpdate);
   const color = d > 90 ? "bg-danger" : d > 45 ? "bg-warning" : "bg-success";
   return (
     <span className="inline-flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap tabular-nums">
       <span className={cn("size-2 rounded-full", color)} />
-      обновлено {d} дн. назад
+      {t("common.updatedDaysAgo", { days: d })}
     </span>
   );
 }

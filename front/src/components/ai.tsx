@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export function AiBadge() {
+  const { t } = useLanguage();
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-[#eef2ff] px-2 py-0.5 text-[10px] font-semibold text-[#4338ca]">
       <Sparkles className="size-3" />
-      ИИ
+      {t("ai.badge")}
     </span>
   );
 }
@@ -91,11 +93,12 @@ export function AiError({
 }: {
   onRetry: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-      <p className="text-muted-foreground">Не удалось сформировать. Попробуйте ещё раз</p>
+      <p className="text-muted-foreground">{t("ai.error")}</p>
       <button type="button" className="mt-2 text-sm font-medium text-primary hover:underline" onClick={onRetry}>
-        Повторить
+        {t("common.tryAgain")}
       </button>
     </div>
   );

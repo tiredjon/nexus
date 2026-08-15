@@ -2,13 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Search, Users, PlayCircle, CheckCircle2, Briefcase } from "lucide-react";
+import { useLanguage, useLabels } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import {
   MAHALLAS,
   PROGRAMS,
   PROGRAM_OUTCOMES,
   daysAgo,
-  formatDate,
   type Person,
   type Program,
   type ProgramOutcome,
@@ -62,6 +62,8 @@ type OutcomeConfirm = {
 };
 
 function Programs() {
+  const { t } = useLanguage();
+  const labels = useLabels();
   const { scopedPeople, setProgramOutcome } = useStore();
   const navigate = useNavigate();
   const search = Route.useSearch();
@@ -100,7 +102,7 @@ function Programs() {
   const submitOutcome = () => {
     if (!confirm) return;
     setProgramOutcome(confirm.person.id, confirm.newOutcome, confirm.comment.trim() || undefined);
-    toast.success("Исход зафиксирован");
+    toast.success(t("toast.outcomeFixed"));
     closeConfirm();
   };
 
@@ -113,13 +115,16 @@ function Programs() {
 
   return (
     <div>
-      <PageHeader title="Программы" subtitle={`Направлено на программы: ${total}`} />
+      <PageHeader
+        title={t("programs.title")}
+        subtitle={t("programs.routed", { total })}
+      />
 
       <div className="yr-stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi icon={Users} label="Всего направлено" value={total} tone="primary" />
-        <Kpi icon={PlayCircle} label="Приступили" value={started} tone="primary" />
-        <Kpi icon={CheckCircle2} label="Завершили" value={completed} tone="success" />
-        <Kpi icon={Briefcase} label="Трудоустроены" value={employed} tone="success" />
+        <Kpi icon={Users} label={t("programs.kpi.total")} value={total} tone="primary" />
+        <Kpi icon={PlayCircle} label={t("programs.kpi.started")} value={started} tone="primary" />
+        <Kpi icon={CheckCircle2} label={t("programs.kpi.completed")} value={completed} tone="success" />
+        <Kpi icon={Briefcase} label={t("programs.kpi.employed")} value={employed} tone="success" />
       </div>
 
       <div className={`mt-4 ${YR_CARD} p-4`}>
@@ -127,7 +132,7 @@ function Programs() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Поиск по ФИО"
+              placeholder={t("registry.search")}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="pl-9"
@@ -136,13 +141,13 @@ function Programs() {
 
           <Select value={program} onValueChange={setProgram}>
             <SelectTrigger>
-              <SelectValue placeholder="Программа" />
+              <SelectValue placeholder={t("programs.filter.program")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Все программы</SelectItem>
+              <SelectItem value="all">{t("programs.filter.allPrograms")}</SelectItem>
               {PROGRAMS.map((p) => (
                 <SelectItem key={p} value={p}>
-                  {p}
+                  {labels.program(p)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -150,10 +155,10 @@ function Programs() {
 
           <Select value={mahalla} onValueChange={setMahalla}>
             <SelectTrigger>
-              <SelectValue placeholder="Махалля" />
+              <SelectValue placeholder={t("programs.col.mahalla")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Все махалли</SelectItem>
+              <SelectItem value="all">{t("programs.filter.allMahallas")}</SelectItem>
               {MAHALLAS.map((m) => (
                 <SelectItem key={m} value={m}>
                   {m}
@@ -164,13 +169,13 @@ function Programs() {
 
           <Select value={outcome} onValueChange={setOutcome}>
             <SelectTrigger>
-              <SelectValue placeholder="Исход" />
+              <SelectValue placeholder={t("programs.filter.outcome")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Все исходы</SelectItem>
+              <SelectItem value="all">{t("programs.filter.allOutcomes")}</SelectItem>
               {PROGRAM_OUTCOMES.map((o) => (
                 <SelectItem key={o} value={o}>
-                  {o}
+                  {labels.outcome(o)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -183,14 +188,14 @@ function Programs() {
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">ФИО</th>
-                <th className="px-4 py-3 text-left font-medium">Возраст</th>
-                <th className="px-4 py-3 text-left font-medium">Махалля</th>
-                <th className="px-4 py-3 text-left font-medium">Программа</th>
-                <th className="px-4 py-3 text-left font-medium">Дата направления</th>
-                <th className="px-4 py-3 text-left font-medium">Дней с направления</th>
-                <th className="px-4 py-3 text-left font-medium">Кто направил</th>
-                <th className="px-4 py-3 text-left font-medium">Исход</th>
+                <th className="px-4 py-3 text-left font-medium">{t("programs.col.name")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("programs.col.age")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("programs.col.mahalla")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("programs.col.program")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("programs.col.routedDate")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("programs.col.daysSince")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("programs.col.routedBy")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("programs.col.outcome")}</th>
               </tr>
             </thead>
             <tbody>
@@ -210,14 +215,18 @@ function Programs() {
                   </td>
                   <td className="px-4 py-3 tabular-nums text-muted-foreground">{p.age}</td>
                   <td className="px-4 py-3 text-muted-foreground">{p.mahalla}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.program}</td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {p.programRoutedAt ? formatDate(p.programRoutedAt) : "—"}
+                    {p.program ? labels.program(p.program) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {p.programRoutedAt ? labels.formatDate(p.programRoutedAt) : "—"}
                   </td>
                   <td className="px-4 py-3 tabular-nums text-muted-foreground">
                     {p.programRoutedAt ? daysAgo(p.programRoutedAt) : "—"}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.routedBy ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {p.routedBy ? labels.routedBy(p.routedBy) : "—"}
+                  </td>
                   <td className="px-4 py-3">
                     <Select
                       value={p.programOutcome ?? "Ожидает"}
@@ -234,7 +243,7 @@ function Programs() {
                       <SelectContent>
                         {PROGRAM_OUTCOMES.map((o) => (
                           <SelectItem key={o} value={o}>
-                            {o}
+                            {labels.outcome(o)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -246,78 +255,82 @@ function Programs() {
           </table>
         </div>
         {total === 0 ? (
-          <EmptyState text="Пока никто не направлен на программы поддержки" />
+          <EmptyState text={t("programs.empty")} />
         ) : rows.length === 0 ? (
           <EmptyState
-            text="По заданным фильтрам записи не найдены"
-            actionLabel="Сбросить фильтры"
+            text={t("programs.emptyFiltered")}
+            actionLabel={t("common.resetFilters")}
             onAction={resetFilters}
           />
         ) : null}
       </div>
 
-      <p className="mt-4 text-xs text-muted-foreground">
-        Исход фиксируется уполномоченным специалистом. Автоматическое изменение статуса не
-        производится.
-      </p>
+      <p className="mt-4 text-xs text-muted-foreground">{t("programs.footer")}</p>
 
       <Dialog open={!!confirm} onOpenChange={(open) => !open && closeConfirm()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Подтвердите фиксацию исхода</DialogTitle>
+            <DialogTitle>{t("programs.confirm.title")}</DialogTitle>
           </DialogHeader>
           {confirm && (
             <div className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 <p className="font-medium text-foreground">
-                  {confirm.person.fullName}, {confirm.person.age} лет · махалля{" "}
-                  {confirm.person.mahalla}
+                  {t("programs.confirm.personLine", {
+                    name: confirm.person.fullName,
+                    age: t("common.yearsOld", { age: confirm.person.age }),
+                    mahalla: confirm.person.mahalla,
+                  })}
                 </p>
-                <p className="mt-1">Программа: {confirm.person.program}</p>
+                <p className="mt-1">
+                  {t("programs.confirm.program")}{" "}
+                  {confirm.person.program ? labels.program(confirm.person.program) : "—"}
+                </p>
                 <p>
-                  Направлен:{" "}
+                  {t("programs.confirm.routed")}{" "}
                   {confirm.person.programRoutedAt
-                    ? formatDate(confirm.person.programRoutedAt)
+                    ? labels.formatDate(confirm.person.programRoutedAt)
                     : "—"}
                 </p>
               </div>
 
               <p className="text-lg font-semibold tracking-tight">
-                {confirm.person.programOutcome ?? "Ожидает"} → {confirm.newOutcome}
+                {t("programs.confirm.change", {
+                  old: labels.outcome(confirm.person.programOutcome ?? "Ожидает"),
+                  new: labels.outcome(confirm.newOutcome),
+                })}
               </p>
 
               {confirm.newOutcome === "Трудоустроен" && (
                 <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-                  Статус человека будет изменён на «Работает», дата обновления данных станет
-                  текущей.
+                  {t("programs.confirm.warnEmployedStatus")}
                 </div>
               )}
 
               {(confirm.newOutcome === "Не явился" || confirm.newOutcome === "Отказался") && (
                 <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-                  Случай вернётся в работу представителя по молодёжи для повторного
-                  рассмотрения.
+                  {t("programs.confirm.warnReturn")}
                 </div>
               )}
 
               <div>
-                <label className="text-sm font-medium">Комментарий (необязательно)</label>
+                <label className="text-sm font-medium">{t("programs.confirm.comment")}</label>
                 <Textarea
                   className="mt-1.5 min-h-[60px]"
                   value={confirm.comment}
                   onChange={(e) =>
                     setConfirm((c) => (c ? { ...c, comment: e.target.value } : c))
                   }
-                  placeholder="Краткий комментарий к решению"
+                  placeholder={t("programs.confirm.commentPlaceholder")}
                 />
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={closeConfirm}>
-              Отменить
+              {t("common.cancel")}
             </Button>
-            <Button onClick={submitOutcome}>Подтвердить</Button>
+            <Button onClick={submitOutcome}>{t("common.confirm")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

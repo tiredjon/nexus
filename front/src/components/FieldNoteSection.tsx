@@ -3,6 +3,7 @@ import { Mic, Sparkles } from "lucide-react";
 import { parseFieldNote, type ParsedNote } from "@/lib/ai";
 import type { Person } from "@/lib/data";
 import type { AiPrefill, EditableFormState } from "@/components/EditPersonDialog";
+import { useLanguage } from "@/lib/i18n";
 import { AiBadge, AiError, AiLoading, AiTypewriter } from "@/components/ai";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,16 +67,21 @@ function mapParsedNoteToPrefill(note: ParsedNote, person: Person): AiPrefill {
     form,
     highlightedFields: highlighted,
     defaultSource: "Подворный обход",
-    historyTitle: "Данные уточнены по заметке с обхода (разбор ИИ, подтверждён сотрудником)",
+    historyTitle: "__fieldNoteUpdated__",
   };
 }
 
 function ParseResultLines({ result }: { result: ParsedNote }) {
-  const lines: string[] = [`Статус: ${result.status}`];
-  if (result.activityDetail) lines.push(`Деятельность: ${result.activityDetail}`);
-  if (result.need) lines.push(`Потребность: ${result.need}`);
-  if (result.direction) lines.push(`Направление: ${result.direction}`);
-  if (result.flags.length) lines.push(`Отмечено: ${result.flags.join(" · ")}`);
+  const { t } = useLanguage();
+  const lines: string[] = [t("fieldNote.line.status", { value: result.status })];
+  if (result.activityDetail) {
+    lines.push(t("fieldNote.line.activity", { value: result.activityDetail }));
+  }
+  if (result.need) lines.push(t("fieldNote.line.need", { value: result.need }));
+  if (result.direction) lines.push(t("fieldNote.line.direction", { value: result.direction }));
+  if (result.flags.length) {
+    lines.push(t("fieldNote.line.flags", { value: result.flags.join(" · ") }));
+  }
 
   return (
     <div className="space-y-1 text-sm">
@@ -99,6 +105,7 @@ export function FieldNoteSection({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [result, setResult] = useState<ParsedNote | null>(null);
+  const { t } = useLanguage();
 
   const canParse = note.trim().length >= 15;
 
@@ -119,14 +126,14 @@ export function FieldNoteSection({
 
   return (
     <section className="mt-4 rounded-xl border border-border bg-card p-6">
-      <h2 className="text-sm font-semibold">Заметка с обхода</h2>
+      <h2 className="text-sm font-semibold">{t("fieldNote.title")}</h2>
 
       <div className="mt-3 flex gap-2">
         <Textarea
           rows={3}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Опишите обычными словами, что выяснили при визите"
+          placeholder={t("fieldNote.placeholder")}
           className="flex-1"
         />
         <TooltipProvider delayDuration={200}>
@@ -136,18 +143,18 @@ export function FieldNoteSection({
                 <Mic className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Голосовой ввод</TooltipContent>
+            <TooltipContent>{t("fieldNote.voiceInput")}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
 
       <Button className="mt-3" disabled={!canParse || loading} onClick={runParse}>
-        <Sparkles className="size-4" /> Разобрать заметку
+        <Sparkles className="size-4" /> {t("fieldNote.parse")}
       </Button>
 
       {loading && (
         <div className="mt-4">
-          <AiLoading label="Анализирую заметку" />
+          <AiLoading label={t("fieldNote.analyzing")} />
         </div>
       )}
 
@@ -161,25 +168,25 @@ export function FieldNoteSection({
         <div className="mt-4 rounded-xl border border-[#c7d2fe] bg-[#f8fafc] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-semibold">
-              Результат разбора <AiBadge />
+              {t("fieldNote.result")} <AiBadge />
             </div>
-            <span className="text-xs text-muted-foreground">уверенность: {result.confidence}</span>
+            <span className="text-xs text-muted-foreground">
+              {t("fieldNote.confidence", { value: result.confidence })}
+            </span>
           </div>
 
           <div className="mt-3">
             <ParseResultLines result={result} />
           </div>
 
-          <p className="mt-4 text-xs italic text-muted-foreground">
-            Результат носит рекомендательный характер. Изменения вносит сотрудник.
-          </p>
+          <p className="mt-4 text-xs italic text-muted-foreground">{t("fieldNote.disclaimer")}</p>
 
           <div className="mt-3 flex gap-2">
             <Button onClick={() => onApply(mapParsedNoteToPrefill(result, person))}>
-              Применить к карточке
+              {t("fieldNote.apply")}
             </Button>
             <Button variant="outline" onClick={() => setResult(null)}>
-              Отклонить
+              {t("fieldNote.reject")}
             </Button>
           </div>
         </div>

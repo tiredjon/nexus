@@ -15,6 +15,7 @@ import {
 } from "@/lib/data";
 import { isOwnMahallaScope } from "@/lib/permissions";
 import { type CreatePersonInput, useStore } from "@/lib/store";
+import { useLanguage, useLabels } from "@/lib/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -109,6 +110,8 @@ export function CreateRecordDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useLanguage();
+  const labels = useLabels();
   const { people, session, createPerson } = useStore();
   const navigate = useNavigate();
   const locked = session ? isOwnMahallaScope(session.role) : false;
@@ -182,9 +185,9 @@ export function CreateRecordDialog({
   const submitCreate = (input: CreatePersonInput) => {
     const id = createPerson(input);
     onOpenChange(false);
-    toast.success("Запись внесена", {
+    toast.success(t("toast.recordCreated"), {
       action: {
-        label: "Открыть профиль",
+        label: t("common.openProfile"),
         onClick: () => navigate({ to: "/person/$id", params: { id } }),
       },
     });
@@ -207,24 +210,22 @@ export function CreateRecordDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Внесение записи по результатам обхода</DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              Используется, если человек не найден в синхронизированных реестрах
-            </p>
+            <DialogTitle>{t("create.title")}</DialogTitle>
+            <p className="text-sm text-muted-foreground">{t("create.subtitle")}</p>
           </DialogHeader>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <ReqField label="Фамилия">
+            <ReqField label={t("create.lastName")}>
               <Input value={form.lastName} onChange={(e) => set("lastName", e.target.value)} />
             </ReqField>
-            <ReqField label="Имя">
+            <ReqField label={t("create.firstName")}>
               <Input value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
             </ReqField>
-            <ReqField label="Имя отца">
+            <ReqField label={t("create.patronymic")}>
               <Input value={form.patronymic} onChange={(e) => set("patronymic", e.target.value)} />
             </ReqField>
 
-            <ReqField label="Пол">
+            <ReqField label={t("create.gender")}>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -233,7 +234,7 @@ export function CreateRecordDialog({
                   className="flex-1"
                   onClick={() => set("gender", "Мужской")}
                 >
-                  М
+                  {labels.genderShort("Мужской")}
                 </Button>
                 <Button
                   type="button"
@@ -242,23 +243,23 @@ export function CreateRecordDialog({
                   className="flex-1"
                   onClick={() => set("gender", "Женский")}
                 >
-                  Ж
+                  {labels.genderShort("Женский")}
                 </Button>
               </div>
             </ReqField>
 
-            <ReqField label="Дата рождения">
+            <ReqField label={t("create.birthDate")}>
               <Input
                 type="date"
                 value={form.birthDate}
                 onChange={(e) => set("birthDate", e.target.value)}
               />
               {form.birthDate && !ageValid && (
-                <p className="mt-1 text-xs text-danger">Возраст должен быть от 18 до 30 лет</p>
+                <p className="mt-1 text-xs text-danger">{t("create.ageHint")}</p>
               )}
             </ReqField>
 
-            <ReqField label="Махалля">
+            <ReqField label={t("create.mahalla")}>
               <Select
                 value={form.mahalla}
                 onValueChange={(v) => set("mahalla", v as Mahalla)}
@@ -277,11 +278,11 @@ export function CreateRecordDialog({
               </Select>
             </ReqField>
 
-            <Field label="Условная зона">
+            <Field label={t("create.zone")}>
               <Input value={form.streetBlock} onChange={(e) => set("streetBlock", e.target.value)} />
             </Field>
 
-            <ReqField label="Уровень образования">
+            <ReqField label={t("create.educationLevel")}>
               <Select
                 value={form.educationLevel}
                 onValueChange={(v) => set("educationLevel", v as Person["educationLevel"])}
@@ -292,25 +293,25 @@ export function CreateRecordDialog({
                 <SelectContent>
                   {EDUCATION_LEVELS.map((l) => (
                     <SelectItem key={l} value={l}>
-                      {l}
+                      {labels.education(l)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </ReqField>
 
-            <Field label="Учебное заведение">
+            <Field label={t("create.institution")}>
               <Input
                 value={form.educationInstitution}
                 onChange={(e) => set("educationInstitution", e.target.value)}
               />
             </Field>
 
-            <Field label="Специальность">
+            <Field label={t("create.specialty")}>
               <Input value={form.specialty} onChange={(e) => set("specialty", e.target.value)} />
             </Field>
 
-            <ReqField label="Статус занятости">
+            <ReqField label={t("create.employmentStatus")}>
               <Select
                 value={form.status}
                 onValueChange={(v) => set("status", v as Person["status"])}
@@ -321,28 +322,30 @@ export function CreateRecordDialog({
                 <SelectContent>
                   {STATUSES.filter((s) => s !== "Направлен на программу").map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {labels.status(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </ReqField>
 
-            <Field label="Место работы / учёбы">
+            <Field label={t("create.workplace")}>
               <Input value={form.activity} onChange={(e) => set("activity", e.target.value)} />
             </Field>
 
-            <Field label="Официальное оформление">
+            <Field label={t("create.official")}>
               <div className="flex h-10 items-center gap-2">
                 <Switch
                   checked={form.isFormalEmployment}
                   onCheckedChange={(v) => set("isFormalEmployment", v)}
                 />
-                <span className="text-sm">{form.isFormalEmployment ? "да" : "нет"}</span>
+                <span className="text-sm">
+                  {form.isFormalEmployment ? t("common.yes") : t("common.no")}
+                </span>
               </div>
             </Field>
 
-            <Field label="Опыт работы в месяцах">
+            <Field label={t("create.experienceMonths")}>
               <Input
                 type="number"
                 min={0}
@@ -351,7 +354,7 @@ export function CreateRecordDialog({
               />
             </Field>
 
-            <Field label="Желаемое направление">
+            <Field label={t("create.desiredDirection")}>
               <Select
                 value={form.desiredDirection}
                 onValueChange={(v) => set("desiredDirection", v as Person["desiredDirection"])}
@@ -362,14 +365,14 @@ export function CreateRecordDialog({
                 <SelectContent>
                   {DESIRED_DIRECTIONS.map((d) => (
                     <SelectItem key={d} value={d}>
-                      {d}
+                      {labels.direction(d)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </Field>
 
-            <Field label="Состав семьи">
+            <Field label={t("create.familySize")}>
               <Input
                 type="number"
                 min={1}
@@ -381,7 +384,7 @@ export function CreateRecordDialog({
               />
             </Field>
 
-            <Field label="Семейное положение">
+            <Field label={t("create.marital")}>
               <Select
                 value={form.maritalStatus}
                 onValueChange={(v) => set("maritalStatus", v as Person["maritalStatus"])}
@@ -392,7 +395,7 @@ export function CreateRecordDialog({
                 <SelectContent>
                   {MARITAL_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {labels.maritalCombined(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -400,7 +403,7 @@ export function CreateRecordDialog({
             </Field>
 
             <div className="sm:col-span-2">
-              <Field label="Навыки">
+              <Field label={t("create.skills")}>
                 <div className="flex gap-2">
                   <Input
                     value={skillInput}
@@ -411,10 +414,10 @@ export function CreateRecordDialog({
                         addSkill();
                       }
                     }}
-                    placeholder="Добавить навык"
+                    placeholder={t("create.addSkill")}
                   />
                   <Button type="button" variant="outline" onClick={addSkill}>
-                    Добавить
+                    {t("create.add")}
                   </Button>
                 </div>
                 {form.skills.length > 0 && (
@@ -437,15 +440,15 @@ export function CreateRecordDialog({
             </div>
 
             <div className="sm:col-span-2">
-              <ReqField label="Основание внесения">
+              <ReqField label={t("create.basis")}>
                 <Select value={form.source} onValueChange={(v) => set("source", v as UpdateSource)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Выберите основание" />
+                    <SelectValue placeholder={t("create.selectBasis")} />
                   </SelectTrigger>
                   <SelectContent>
                     {CREATE_UPDATE_SOURCES.map((s) => (
                       <SelectItem key={s} value={s}>
-                        {s}
+                        {labels.source(s)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -456,10 +459,10 @@ export function CreateRecordDialog({
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Отменить
+              {t("common.cancel")}
             </Button>
             <Button disabled={!requiredFilled} onClick={handleSave}>
-              Сохранить
+              {t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -468,14 +471,18 @@ export function CreateRecordDialog({
       <AlertDialog open={!!duplicate} onOpenChange={(v) => !v && setDuplicate(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Похожая запись уже существует</AlertDialogTitle>
+            <AlertDialogTitle>{t("create.duplicateTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Похожая запись уже существует: {duplicate?.fullName}, {duplicate?.id}. Всё равно
-              внести?
+              {t("create.duplicateBody", {
+                name: duplicate?.fullName ?? "",
+                id: duplicate?.id ?? "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingInput(null)}>Отменить</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setPendingInput(null)}>
+              {t("common.cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingInput) submitCreate(pendingInput);
@@ -483,7 +490,7 @@ export function CreateRecordDialog({
                 setPendingInput(null);
               }}
             >
-              Внести
+              {t("create.duplicateConfirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

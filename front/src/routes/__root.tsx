@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { StoreProvider } from "../lib/store";
+import { LanguageProvider } from "../lib/i18n";
 import { AppShell } from "../components/AppShell";
 import { Toaster } from "../components/ui/sonner";
 
@@ -133,14 +134,16 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <StoreProvider>
-        <AppShell>
-          <Outlet />
-        </AppShell>
-        <Toaster position="top-right" richColors />
-      </StoreProvider>
-    </QueryClientProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={queryClient}>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <StoreProvider>
+          <AppShell>
+            <Outlet />
+          </AppShell>
+          <Toaster position="top-right" richColors />
+        </StoreProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   );
 }

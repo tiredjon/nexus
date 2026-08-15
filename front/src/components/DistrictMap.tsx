@@ -14,6 +14,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import type { Feature, GeoJsonObject } from "geojson";
+import { useLanguage } from "@/lib/i18n";
 
 import regionsData from "@/data/geo/uzbekistan-regions.geojson";
 import districtsData from "@/data/geo/tashkent-districts.geojson";
@@ -26,7 +27,6 @@ import {
   DISTRICT_CENTER,
   DISTRICT_ZOOM,
   MIRZO_DISTRICT_NAME,
-  NO_DATA_TOAST,
   TASHKENT_REGION_CODES,
   TASHKENT_VIEW_CENTER,
   TASHKENT_VIEW_ZOOM,
@@ -35,6 +35,7 @@ import {
   type DistrictProperties,
   type RegionProperties,
 } from "@/lib/map-geo";
+import { useMapInvalidateOnSidebar } from "@/lib/use-map-invalidate-on-sidebar";
 import { Button } from "./ui/button";
 
 export type MahallaStat = {
@@ -135,6 +136,7 @@ function MapBridge({
 
 function RegionsLayer() {
   const map = useMap();
+  const { t } = useLanguage();
 
   const style = (feature?: Feature) => {
     const iso = (feature?.properties as RegionProperties | undefined)?.shapeISO ?? "";
@@ -160,7 +162,7 @@ function RegionsLayer() {
       return;
     }
 
-    layer.on("click", () => toast.info(NO_DATA_TOAST));
+    layer.on("click", () => toast.info(t("map.noDataToast")));
   };
 
   return (
@@ -175,6 +177,7 @@ function RegionsLayer() {
 
 function DistrictsLayer() {
   const map = useMap();
+  const { t } = useLanguage();
 
   const style = (feature?: Feature) => {
     const name = (feature?.properties as DistrictProperties | undefined)?.shapeName ?? "";
@@ -201,7 +204,7 @@ function DistrictsLayer() {
       return;
     }
 
-    layer.on("click", () => toast.info(NO_DATA_TOAST));
+    layer.on("click", () => toast.info(t("map.noDataToast")));
   };
 
   return (
@@ -216,6 +219,7 @@ function DistrictsLayer() {
 
 function MahallaZones({ stats, colorMode }: { stats: MahallaStat[]; colorMode: ZoneColorMode }) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   // Геометрия зависит только от набора махаллей, а не от их статистики,
   // поэтому пересчитываем её лишь когда меняется сам список.
@@ -256,9 +260,9 @@ function MahallaZones({ stats, colorMode }: { stats: MahallaStat[]; colorMode: Z
                 <div className="min-w-44 font-sans">
                   <div className="text-sm font-semibold">{zone.mahalla}</div>
                   <div className="mt-1 text-xs text-slate-600">
-                    Всего молодёжи: <b>{s.total}</b>
+                    {t("map.popup.total")} <b>{s.total}</b>
                     <br />
-                    Занятые: <b>{s.employed}</b>
+                    {t("map.popup.employed")} <b>{s.employed}</b>
                     <br />
                     NEET: <b>{s.neet}</b> ({s.share.toFixed(1)}%)
                   </div>
@@ -267,7 +271,7 @@ function MahallaZones({ stats, colorMode }: { stats: MahallaStat[]; colorMode: Z
                     className="mt-3 w-full"
                     onClick={() => navigate({ to: "/registry", search: { mahalla: s.mahalla } })}
                   >
-                    Открыть махаллю
+                    {t("map.popup.openMahalla")}
                   </Button>
                 </div>
               </Popup>
@@ -317,8 +321,11 @@ export default function DistrictMap({
   stats: MahallaStat[];
   colorMode: ZoneColorMode;
 }) {
+  const { t } = useLanguage();
   const [map, setMap] = useState<L.Map | null>(null);
   const [zoom, setZoom] = useState(UZBEKISTAN_ZOOM);
+
+  useMapInvalidateOnSidebar(map);
 
   return (
     <div className="relative h-[540px]">
@@ -341,14 +348,14 @@ export default function DistrictMap({
             className="shadow-md"
             onClick={() => map.flyTo(UZBEKISTAN_CENTER, UZBEKISTAN_ZOOM, { duration: 1.2 })}
           >
-            Показать весь Узбекистан
+            {t("map.showUzbekistan")}
           </Button>
           <Button
             size="sm"
             className="shadow-md"
             onClick={() => map.flyTo(DISTRICT_CENTER, DISTRICT_ZOOM, { duration: 1.2 })}
           >
-            Вернуться к району
+            {t("map.backToDistrict")}
           </Button>
         </div>
       )}

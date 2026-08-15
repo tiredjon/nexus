@@ -1,6 +1,7 @@
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 import { Info } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { MAHALLAS, type Mahalla } from "@/lib/data";
 import { isOwnMahallaScope } from "@/lib/permissions";
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/map")({
 });
 
 function MapPage() {
+  const { t } = useLanguage();
   const { scopedPeople, session } = useStore();
   // По умолчанию карта показывает махалли разными цветами: район читается как
   // набор территорий. Статусная (красно-оранжевая) шкала — по переключателю.
@@ -52,10 +54,7 @@ function MapPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Карта района"
-        subtitle="Масштабируйте карту: Узбекистан → районы Ташкента → махалли Мирзо-Улугбек"
-      />
+      <PageHeader title={t("map.title")} subtitle={t("map.subtitle")} />
 
       <div className="mb-3 flex justify-end">
         <ToggleGroup
@@ -65,10 +64,10 @@ function MapPage() {
           value={colorMode}
           // Radix отдаёт "" при попытке снять выбор — режим должен остаться выбранным.
           onValueChange={(value) => value && setColorMode(value as ZoneColorMode)}
-          aria-label="Раскраска территорий"
+          aria-label={t("map.colorMode.ariaLabel")}
         >
-          <ToggleGroupItem value="neet">По статусу NEET</ToggleGroupItem>
-          <ToggleGroupItem value="mahalla">По махаллям</ToggleGroupItem>
+          <ToggleGroupItem value="neet">{t("map.colorMode.neet")}</ToggleGroupItem>
+          <ToggleGroupItem value="mahalla">{t("map.colorMode.mahalla")}</ToggleGroupItem>
         </ToggleGroup>
       </div>
 
@@ -84,9 +83,9 @@ function MapPage() {
 
       {colorMode === "neet" ? (
         <div className="mt-4 flex flex-wrap gap-5 text-xs text-muted-foreground">
-          <Legend color="bg-success" label="Доля NEET < 5%" />
-          <Legend color="bg-warning" label="Доля NEET 5–12%" />
-          <Legend color="bg-danger" label="Доля NEET > 12%" />
+          <Legend color="bg-success" label={t("map.legend.neetLow")} />
+          <Legend color="bg-warning" label={t("map.legend.neetMid")} />
+          <Legend color="bg-danger" label={t("map.legend.neetHigh")} />
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-muted-foreground sm:grid-cols-3 lg:grid-cols-4">
@@ -104,11 +103,7 @@ function MapPage() {
 
       <div className="mt-4 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" />
-        <p>
-          Отображаются только агрегированные показатели по территориям. Точные адреса граждан не
-          используются. Границы махаллей на карте являются приблизительными и служат для
-          навигации, а не являются официальными кадастровыми границами.
-        </p>
+        <p>{t("map.disclaimer")}</p>
       </div>
     </div>
   );

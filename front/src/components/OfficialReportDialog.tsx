@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { buildAnalyticsStats, generateOfficialReport } from "@/lib/ai";
-import { MAHALLAS, formatDate, type Person } from "@/lib/data";
+import { useLanguage, useLabels } from "@/lib/i18n";
+import { MAHALLAS, type Person } from "@/lib/data";
 import { AiBadge, AiError, AiLoading, AiTypewriter } from "@/components/ai";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,12 +34,16 @@ export function OfficialReportDialog({
   onOpenChange: (open: boolean) => void;
   people: Person[];
 }) {
+  const { t } = useLanguage();
+  const labels = useLabels();
   const [period, setPeriod] = useState("month");
   const [territory, setTerritory] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [doc, setDoc] = useState<ReportDoc | null>(null);
   const [visibleSections, setVisibleSections] = useState(0);
+
+  const reportDate = labels.formatDate(new Date().toISOString().slice(0, 10));
 
   const scopedPeople = useMemo(() => {
     if (territory === "all") return people;
@@ -52,7 +57,9 @@ export function OfficialReportDialog({
     setVisibleSections(0);
     try {
       const territoryLabel =
-        territory === "all" ? "Мирзо-Улугбекского района" : `махалли «${territory}»`;
+        territory === "all"
+          ? t("report.territoryDistrict")
+          : t("report.territoryMahalla", { name: territory });
       const stats = buildAnalyticsStats(scopedPeople, territoryLabel);
       const result = await generateOfficialReport(stats, period);
       setDoc(result);
@@ -69,16 +76,16 @@ export function OfficialReportDialog({
         doc.title,
         "",
         ...doc.sections.flatMap((s) => [s.heading, s.body, ""]),
-        `Справка сформирована автоматически на основании данных системы Yoshlar Radar по состоянию на ${formatDate(new Date().toISOString().slice(0, 10))}. Требует проверки уполномоченным сотрудником перед официальным использованием.`,
+        t("report.disclaimerFull", { date: reportDate }),
       ].join("\n")
     : "";
 
   const copyText = async () => {
     try {
       await navigator.clipboard.writeText(fullText);
-      toast.success("Скопировано");
+      toast.success(t("common.copied"));
     } catch {
-      toast.error("Не удалось скопировать");
+      toast.error(t("common.copyFailed"));
     }
   };
 
@@ -108,32 +115,32 @@ export function OfficialReportDialog({
     >
       <DialogContent className="flex max-h-[95vh] max-w-3xl flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Сформировать справку</DialogTitle>
+          <DialogTitle>{t("report.title")}</DialogTitle>
         </DialogHeader>
 
         {!doc && !loading && (
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-xs text-muted-foreground">Период</label>
+              <label className="text-xs text-muted-foreground">{t("report.period")}</label>
               <Select value={period} onValueChange={setPeriod}>
                 <SelectTrigger className="mt-1.5">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="month">Текущий месяц</SelectItem>
-                  <SelectItem value="quarter">Квартал</SelectItem>
-                  <SelectItem value="half">Полугодие</SelectItem>
+                  <SelectItem value="month">{t("report.period.month")}</SelectItem>
+                  <SelectItem value="quarter">{t("report.period.quarter")}</SelectItem>
+                  <SelectItem value="half">{t("report.period.half")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Территория</label>
+              <label className="text-xs text-muted-foreground">{t("report.territory")}</label>
               <Select value={territory} onValueChange={setTerritory}>
                 <SelectTrigger className="mt-1.5">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Весь район</SelectItem>
+                  <SelectItem value="all">{t("report.territory.district")}</SelectItem>
                   {MAHALLAS.map((m) => (
                     <SelectItem key={m} value={m}>
                       {m}
@@ -143,14 +150,14 @@ export function OfficialReportDialog({
               </Select>
             </div>
             <div className="sm:col-span-2">
-              <Button onClick={generate}>Сформировать</Button>
+              <Button onClick={generate}>{t("report.generate")}</Button>
             </div>
           </div>
         )}
 
         {loading && (
           <div className="py-8">
-            <AiLoading label="Формирую справку" />
+            <AiLoading label={t("report.generating")} />
           </div>
         )}
 
@@ -164,7 +171,7 @@ export function OfficialReportDialog({
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <div className="mb-4 flex items-center justify-end gap-2 text-xs text-muted-foreground">
               <AiBadge />
-              Черновик, требует проверки
+              {t("report.draft")}
             </div>
 
             <h2 className="text-lg font-semibold leading-snug">
@@ -191,9 +198,7 @@ export function OfficialReportDialog({
 
             {visibleSections >= doc.sections.length && (
               <p className="mt-8 text-xs text-muted-foreground">
-                Справка сформирована автоматически на основании данных системы Yoshlar Radar по
-                состоянию на {formatDate(new Date().toISOString().slice(0, 10))}. Требует проверки
-                уполномоченным сотрудником перед официальным использованием.
+                {t("report.disclaimerFull", { date: reportDate })}
               </p>
             )}
           </div>
@@ -202,13 +207,13 @@ export function OfficialReportDialog({
         {doc && !loading && visibleSections >= (doc?.sections.length ?? 0) && (
           <DialogFooter className="mt-4 shrink-0 gap-2 sm:justify-start">
             <Button variant="outline" onClick={copyText}>
-              Копировать текст
+              {t("report.copy")}
             </Button>
             <Button variant="outline" onClick={downloadTxt}>
-              Скачать .txt
+              {t("report.download")}
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Закрыть
+              {t("common.close")}
             </Button>
           </DialogFooter>
         )}

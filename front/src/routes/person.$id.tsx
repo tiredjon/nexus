@@ -13,7 +13,8 @@ import {
   Pencil,
 } from "lucide-react";
 import { useStore, useRoleConfig } from "@/lib/store";
-import { PROGRAMS, formatDate, daysAgo, formatWorkExperience, displayMaritalStatus, type Person, type Program } from "@/lib/data";
+import { PROGRAMS, daysAgo, formatWorkExperience, type Person, type Program } from "@/lib/data";
+import { useLanguage, useLabels } from "@/lib/i18n";
 import { EmptyState, NeetBadge, StatusBadge } from "@/components/common";
 import { EditPersonDialog, type AiPrefill } from "@/components/EditPersonDialog";
 import { FieldNoteSection } from "@/components/FieldNoteSection";
@@ -121,6 +122,8 @@ function suggestions(p: Person): Omit<Suggestion, "priority">[] {
 }
 
 function PersonPage() {
+  const { t } = useLanguage();
+  const labels = useLabels();
   const { id } = Route.useParams();
   const { scopedPeople, session, routeToProgram, confirmStatus, requestClarification } = useStore();
   const roleConfig = useRoleConfig();
@@ -141,10 +144,10 @@ function PersonPage() {
   if (!person)
     return (
       <div className="mx-auto max-w-2xl">
-        <EmptyState text="Профиль не найден или недоступен в рамках вашей территории." />
+        <EmptyState text={t("person.notFound")} />
         <div className="mt-4 text-center">
           <Link to="/registry" className="text-sm text-primary hover:underline">
-            Вернуться в реестр
+            {t("common.backToRegistry")}
           </Link>
         </div>
       </div>
@@ -158,7 +161,7 @@ function PersonPage() {
         to="/registry"
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> К реестру
+        <ArrowLeft className="size-4" /> {t("common.toRegistry")}
       </Link>
 
       <div className="rounded-xl border border-border bg-card p-6">
@@ -170,11 +173,19 @@ function PersonPage() {
               {person.neet && <NeetBadge />}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              {person.age} лет · {person.gender} · махалля {person.mahalla} · ID {person.id}
+              {t("person.meta", {
+                age: person.age,
+                gender: labels.gender(person.gender),
+                mahalla: person.mahalla,
+                id: person.id,
+              })}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Деятельность: {person.activity} · обновлено {formatDate(person.lastUpdate)} (
-              {daysAgo(person.lastUpdate)} дн. назад)
+              {t("person.activityLine", {
+                activity: labels.activity(person.activity),
+                date: labels.formatDate(person.lastUpdate),
+                days: daysAgo(person.lastUpdate),
+              })}
             </p>
           </div>
           {(roleConfig?.can.confirmStatus ||
@@ -183,7 +194,7 @@ function PersonPage() {
             <div className="flex flex-wrap gap-2">
               {roleConfig?.can.editProfile && (
                 <Button variant="outline" onClick={() => setEditOpen(true)}>
-                  <Pencil className="size-4" /> Редактировать
+                  <Pencil className="size-4" /> {t("person.edit")}
                 </Button>
               )}
               {roleConfig?.can.confirmStatus && (
@@ -191,12 +202,12 @@ function PersonPage() {
                   variant="outline"
                   onClick={() => {
                     confirmStatus(person.id);
-                    toast.success("Статус подтверждён", {
-                      description: "Событие добавлено в историю.",
+                    toast.success(t("toast.statusConfirmed"), {
+                      description: t("toast.statusConfirmedDesc"),
                     });
                   }}
                 >
-                  <CheckCircle2 className="size-4" /> Подтвердить статус (проверено)
+                  <CheckCircle2 className="size-4" /> {t("person.confirmStatus")}
                 </Button>
               )}
               {roleConfig?.can.requestClarification && (
@@ -204,12 +215,12 @@ function PersonPage() {
                   variant="outline"
                   onClick={() => {
                     requestClarification(person.id);
-                    toast("Запрошено уточнение", {
-                      description: "Дело переведено в статус «На уточнении».",
+                    toast(t("toast.clarificationRequested"), {
+                      description: t("toast.clarificationRequestedDesc"),
                     });
                   }}
                 >
-                  <CircleHelp className="size-4" /> Запросить уточнение
+                  <CircleHelp className="size-4" /> {t("person.requestClarification")}
                 </Button>
               )}
             </div>
@@ -218,30 +229,36 @@ function PersonPage() {
       </div>
 
       <section className="mt-4">
-        <h2 className="mb-3 text-sm font-semibold">Сведения о человеке</h2>
+        <h2 className="mb-3 text-sm font-semibold">{t("person.section.person")}</h2>
         <div className="grid gap-4 lg:grid-cols-3">
-          <InfoCard title="Личные данные">
-            <InfoLine label="Дата рождения" value={formatDate(person.birthDate)} />
-            <InfoLine label="Пол" value={person.gender} />
-            <InfoLine label="Махалля" value={person.mahalla} />
-            <InfoLine label="Условная зона" value={person.streetBlock} />
-            <InfoLine label="Состав семьи" value={`${person.householdSize} чел.`} />
-            <InfoLine label="Семейное положение" value={displayMaritalStatus(person)} />
+          <InfoCard title={t("person.section.personal")}>
+            <InfoLine label={t("person.field.birthDate")} value={labels.formatDate(person.birthDate)} />
+            <InfoLine label={t("person.field.gender")} value={labels.gender(person.gender)} />
+            <InfoLine label={t("person.field.mahalla")} value={person.mahalla} />
+            <InfoLine label={t("person.field.zone")} value={person.streetBlock} />
+            <InfoLine
+              label={t("person.field.familySize")}
+              value={t("common.peopleCount", { count: person.householdSize })}
+            />
+            <InfoLine label={t("person.field.marital")} value={labels.marital(person)} />
             {person.isBreadwinner && (
-              <InfoLine label="Единственный кормилец" value="да" />
+              <InfoLine label={t("person.field.breadwinner")} value={t("common.yes")} />
             )}
           </InfoCard>
 
-          <InfoCard title="Образование и навыки">
-            <InfoLine label="Уровень образования" value={person.educationLevel} />
-            <InfoLine label="Учебное заведение" value={person.educationInstitution} />
-            <InfoLine label="Специальность" value={person.specialty} />
+          <InfoCard title={t("person.section.education")}>
+            <InfoLine
+              label={t("person.field.education")}
+              value={labels.education(person.educationLevel)}
+            />
+            <InfoLine label={t("person.field.institution")} value={person.educationInstitution} />
+            <InfoLine label={t("person.field.specialty")} value={person.specialty} />
             {person.graduationYear != null && (
-              <InfoLine label="Год окончания" value={String(person.graduationYear)} />
+              <InfoLine label={t("person.field.gradYear")} value={String(person.graduationYear)} />
             )}
             {person.skills.length > 0 && (
               <div className="mt-2">
-                <div className="text-xs text-muted-foreground">Навыки</div>
+                <div className="text-xs text-muted-foreground">{t("person.field.skills")}</div>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {person.skills.map((s) => (
                     <Badge key={s} variant="secondary" className="font-normal">
@@ -252,35 +269,44 @@ function PersonPage() {
               </div>
             )}
             {person.languages.length > 0 && (
-              <InfoLine label="Языки" value={person.languages.join(", ")} />
+              <InfoLine label={t("person.field.languages")} value={person.languages.join(", ")} />
             )}
             {person.hasDriverLicense && (
-              <InfoLine label="Водительские права" value="есть" />
+              <InfoLine label={t("person.field.drivers")} value={t("common.has")} />
             )}
           </InfoCard>
 
-          <InfoCard title="Занятость">
-            <InfoLine label="Текущий статус" value={person.status} />
-            <InfoLine label="Место работы/учёбы" value={person.activity !== "—" ? person.activity : null} />
+          <InfoCard title={t("person.section.employment")}>
+            <InfoLine
+              label={t("person.field.currentStatus")}
+              value={labels.status(person.status)}
+            />
+            <InfoLine
+              label={t("person.field.workplace")}
+              value={person.activity !== "—" ? labels.activity(person.activity) : null}
+            />
             {(person.status === "Работает" || person.status === "Предприниматель") && (
               <InfoLine
-                label="Официальное оформление"
-                value={person.isFormalEmployment ? "да" : "нет"}
+                label={t("person.field.official")}
+                value={person.isFormalEmployment ? t("common.yes") : t("common.no")}
               />
             )}
             <InfoLine
-              label="Опыт работы"
+              label={t("person.field.experience")}
               value={
                 person.workExperienceMonths > 0
-                  ? formatWorkExperience(person.workExperienceMonths)
+                  ? labels.formatExperience(person.workExperienceMonths)
                   : null
               }
             />
-            <InfoLine label="Желаемое направление" value={person.desiredDirection} />
+            <InfoLine
+              label={t("person.field.desired")}
+              value={labels.direction(person.desiredDirection)}
+            />
           </InfoCard>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Источник последнего обновления: {person.lastUpdateSource} · Ответственный:{" "}
+          {t("person.source")} {labels.source(person.lastUpdateSource)} · {t("person.responsible")}{" "}
           {person.responsibleOfficer}
         </p>
       </section>
@@ -297,7 +323,7 @@ function PersonPage() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-border bg-card p-6">
-          <h2 className="text-sm font-semibold">История статусов</h2>
+          <h2 className="text-sm font-semibold">{t("person.section.history")}</h2>
           <ol className="mt-5 space-y-0">
             {history.map((e, i) => (
               <li key={i} className="relative flex gap-4 pb-6 last:pb-0">
@@ -308,8 +334,8 @@ function PersonPage() {
                   {i < history.length - 1 && <span className="w-px flex-1 bg-border" />}
                 </div>
                 <div className="pb-1">
-                  <div className="text-xs text-muted-foreground">{formatDate(e.date)}</div>
-                  <div className="text-sm font-medium">{e.title}</div>
+                  <div className="text-xs text-muted-foreground">{labels.formatDate(e.date)}</div>
+                  <div className="text-sm font-medium">{labels.historyTitle(e.title)}</div>
                   {e.note && <div className="mt-0.5 text-xs text-muted-foreground">{e.note}</div>}
                 </div>
               </li>
@@ -318,7 +344,7 @@ function PersonPage() {
         </section>
 
         <section className="rounded-xl border border-border bg-card p-6">
-          <h2 className="text-sm font-semibold">Рекомендуемые направления поддержки</h2>
+          <h2 className="text-sm font-semibold">{t("person.section.recommendations")}</h2>
           <div className="mt-4 space-y-3">
             {suggestions(person).map((s) => (
               <div key={s.program} className="rounded-xl border border-border p-4">
@@ -327,7 +353,7 @@ function PersonPage() {
                     <s.icon className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">{s.program}</div>
+                    <div className="text-sm font-semibold">{labels.program(s.program)}</div>
                     <RecommendationReason person={person} program={s.program} />
                   </div>
                   {roleConfig?.can.routeToProgram ? (
@@ -338,11 +364,11 @@ function PersonPage() {
                         setOpen(true);
                       }}
                     >
-                      Направить
+                      {t("person.route")}
                     </Button>
                   ) : (
                     <span className="max-w-28 text-right text-xs text-muted-foreground">
-                      Направление выполняет представитель по работе с молодёжью
+                      {t("person.routeNote")}
                     </span>
                   )}
                 </div>
@@ -351,13 +377,10 @@ function PersonPage() {
           </div>
           {person.program && (
             <p className="mt-4 rounded-lg bg-success/10 p-3 text-xs text-success">
-              Уже направлен на программу: {person.program}
+              {t("person.alreadyRouted")} {labels.program(person.program)}
             </p>
           )}
-          <p className="mt-4 text-xs text-muted-foreground">
-            Программы подбираются по формальным правилам. ИИ формирует пояснение. Решение о
-            направлении принимает уполномоченный сотрудник.
-          </p>
+          <p className="mt-4 text-xs text-muted-foreground">{t("person.recRules")}</p>
         </section>
       </div>
 
@@ -374,11 +397,11 @@ function PersonPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Направление на программу поддержки</DialogTitle>
+            <DialogTitle>{t("person.routeDialog.title")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Программа</label>
+              <label className="text-sm font-medium">{t("person.routeDialog.program")}</label>
               <Select value={program} onValueChange={(v) => setProgram(v as Program)}>
                 <SelectTrigger className="mt-1.5 w-full">
                   <SelectValue />
@@ -386,37 +409,40 @@ function PersonPage() {
                 <SelectContent>
                   {PROGRAMS.map((p) => (
                     <SelectItem key={p} value={p}>
-                      {p}
+                      {labels.program(p)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium">Комментарий сотрудника</label>
+              <label className="text-sm font-medium">{t("person.routeDialog.comment")}</label>
               <Textarea
                 className="mt-1.5"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Например: согласовано с инспектором махалли, начало обучения с сентября"
+                placeholder={t("person.routeDialog.placeholderLong")}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Отмена
+              {t("common.cancelAlt")}
             </Button>
             <Button
               onClick={() => {
                 routeToProgram(person.id, program, comment);
                 setOpen(false);
                 setComment("");
-                toast.success("Направление оформлено", {
-                  description: `${person.fullName} → ${program}`,
+                toast.success(t("toast.routed"), {
+                  description: t("toast.routedDesc", {
+                    name: person.fullName,
+                    program: labels.program(program),
+                  }),
                 });
               }}
             >
-              Подтвердить направление
+              {t("person.routeDialog.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

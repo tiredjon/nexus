@@ -6,6 +6,7 @@ import { useStore, useRoleConfig } from "@/lib/store";
 import { MAHALLAS, REVIEW_STATUSES, STATUSES, daysAgo, isStale, shortName, type ReviewStatus } from "@/lib/data";
 import { computePriorityLevel, compareByPriority, type PriorityLevel } from "@/lib/person-compute";
 import { isOwnMahallaScope } from "@/lib/permissions";
+import { useLanguage, useLabels } from "@/lib/i18n";
 import { EmptyState, PageHeader, PriorityBadge, StatusBadge, YR_CARD, YR_CARD_INTERACTIVE } from "@/components/common";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,6 +46,8 @@ const COLUMN_TONE: Record<ReviewStatus, string> = {
 const DEFAULT_AGES: [number, number] = [18, 30];
 
 function Review() {
+  const { t } = useLanguage();
+  const labels = useLabels();
   const { scopedPeople, session, setReviewStatus } = useStore();
   const roleConfig = useRoleConfig();
   const canMove = roleConfig?.can.moveKanban ?? false;
@@ -107,16 +110,13 @@ function Review() {
   return (
     <div>
       <PageHeader
-        title="Требуют внимания"
-        subtitle={`Случаев в работе: ${filteredCases.length}`}
+        title={t("review.title")}
+        subtitle={t("review.inProgress", { count: filteredCases.length })}
       />
 
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
         <Info className="mt-0.5 size-4 shrink-0 text-warning" />
-        <p>
-          Флаг NEET — это сигнал для проверки уполномоченным сотрудником, а не окончательный
-          административный статус.
-        </p>
+        <p>{t("review.neetBanner")}</p>
       </div>
 
       <div className="mb-5 yr-card p-4">
@@ -124,7 +124,7 @@ function Review() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Поиск по ФИО"
+              placeholder={t("registry.search")}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="pl-9"
@@ -137,10 +137,10 @@ function Review() {
             disabled={locked}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Махалля" />
+              <SelectValue placeholder={t("registry.mahalla")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Все махалли</SelectItem>
+              <SelectItem value="all">{t("registry.allMahallas")}</SelectItem>
               {MAHALLAS.map((m) => (
                 <SelectItem key={m} value={m}>
                   {m}
@@ -151,13 +151,13 @@ function Review() {
 
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger>
-              <SelectValue placeholder="Статус" />
+              <SelectValue placeholder={t("registry.status")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Все статусы</SelectItem>
+              <SelectItem value="all">{t("registry.allStatuses")}</SelectItem>
               {STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>
-                  {s}
+                  {labels.status(s)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -165,13 +165,13 @@ function Review() {
 
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
             <SelectTrigger>
-              <SelectValue placeholder="Приоритет" />
+              <SelectValue placeholder={t("review.priority")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Все</SelectItem>
+              <SelectItem value="all">{t("common.all")}</SelectItem>
               {(["Высокий", "Средний", "Обычный"] as PriorityLevel[]).map((level) => (
                 <SelectItem key={level} value={level}>
-                  {level}
+                  {labels.priority(level)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -179,7 +179,7 @@ function Review() {
 
           <div className="px-1 md:col-span-2 xl:col-span-1">
             <div className="mb-1 text-xs text-muted-foreground">
-              Возраст: {ages[0]}–{ages[1]} лет
+              {t("registry.ageRange", { min: ages[0] ?? 18, max: ages[1] ?? 30 })}
             </div>
             <Slider min={18} max={30} step={1} value={ages} onValueChange={setAges} />
           </div>
@@ -187,21 +187,17 @@ function Review() {
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-5 border-t border-border pt-4 text-sm">
           <div className="flex flex-wrap gap-5">
+            <Toggle label={t("review.overdue30")} checked={overdue30} onChange={setOverdue30} />
+            <Toggle label={t("registry.staleData")} checked={onlyStale} onChange={setOnlyStale} />
             <Toggle
-              label="просрочено более 30 дней"
-              checked={overdue30}
-              onChange={setOverdue30}
-            />
-            <Toggle label="устаревшие данные" checked={onlyStale} onChange={setOnlyStale} />
-            <Toggle
-              label="состоит в социальных реестрах"
+              label={t("review.socialRegistry")}
               checked={socialRegistry}
               onChange={setSocialRegistry}
             />
           </div>
           {hasActiveFilters && (
             <Button variant="outline" size="sm" onClick={resetFilters}>
-              Сбросить
+              {t("common.reset")}
             </Button>
           )}
         </div>
@@ -230,7 +226,9 @@ function Review() {
                       if (dragId) {
                         const person = filteredCases.find((p) => p.id === dragId);
                         setReviewStatus(dragId, col);
-                        toast.success(`Перемещено: ${col}`, { description: person?.fullName });
+                        toast.success(t("toast.movedTo", { column: labels.review(col) }), {
+                          description: person?.fullName,
+                        });
                       }
                       setDragId(null);
                       setOver(null);
@@ -244,16 +242,14 @@ function Review() {
             >
               <div className="mb-3 flex items-center gap-2 px-1">
                 <span className={cn("size-2 rounded-full", COLUMN_TONE[col])} />
-                <h2 className="text-sm font-semibold">{col}</h2>
+                <h2 className="text-sm font-semibold">{labels.review(col)}</h2>
                 <span className="ml-auto rounded-full bg-card px-2 py-0.5 text-xs text-muted-foreground">
                   {items.length}
                 </span>
               </div>
 
               <div className="yr-scrollbar yr-stagger max-h-[min(520px,calc(100vh-20rem))] space-y-2 overflow-y-auto pr-1">
-                {items.length === 0 && (
-                  <EmptyState text="В этой колонке пока нет случаев" />
-                )}
+                {items.length === 0 && <EmptyState text={t("review.emptyColumn")} />}
                 {items.slice(0, 40).map((p) => (
                   <article
                     key={p.id}
@@ -268,7 +264,7 @@ function Review() {
                   >
                     <div className="text-sm font-medium">{shortName(p)}</div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
-                      {p.age} лет · {p.mahalla}
+                      {t("common.yearsOld", { age: p.age })} · {p.mahalla}
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-1.5">
@@ -276,7 +272,7 @@ function Review() {
                         <StatusBadge status={p.status} />
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {daysAgo(p.lastUpdate)} дн.
+                        {t("common.daysAgo", { days: daysAgo(p.lastUpdate) })}
                       </span>
                     </div>
                     <Link
@@ -284,7 +280,7 @@ function Review() {
                       params={{ id: p.id }}
                       className="mt-2 inline-block text-xs font-medium text-primary transition-colors duration-150 hover:underline"
                     >
-                      Открыть профиль →
+                      {t("review.openProfile")}
                     </Link>
                   </article>
                 ))}

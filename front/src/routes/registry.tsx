@@ -4,6 +4,7 @@ import { Search, ArrowUpDown, Plus } from "lucide-react";
 import { useStore, useRoleConfig } from "@/lib/store";
 import { MAHALLAS, STATUSES, EDUCATION_LEVELS, isStale, type EmploymentStatus } from "@/lib/data";
 import { isOwnMahallaScope } from "@/lib/permissions";
+import { useLanguage, useLabels } from "@/lib/i18n";
 import { EmptyState, FreshnessDot, NeetBadge, PageHeader, StatusBadge, YR_CARD } from "@/components/common";
 import { CreateRecordDialog } from "@/components/CreateRecordDialog";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,8 @@ export const Route = createFileRoute("/registry")({
 });
 
 function Registry() {
+  const { t } = useLanguage();
+  const labels = useLabels();
   const { scopedPeople, session } = useStore();
   const roleConfig = useRoleConfig();
   const navigate = useNavigate();
@@ -99,11 +102,11 @@ function Registry() {
   return (
     <div>
       <PageHeader
-        title="Реестр молодёжи"
+        title={t("registry.title")}
         subtitle={
           roleConfig?.scope === "routed_only"
-            ? "Молодёжь, направленная на программы поддержки"
-            : `Найдено записей: ${rows.length}`
+            ? t("dash.subtitle.programs")
+            : t("registry.found", { count: rows.length })
         }
       >
         {roleConfig?.can.createRecord && (
@@ -113,7 +116,7 @@ function Registry() {
             className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
           >
             <Plus className="size-3.5" />
-            Внести запись
+            {t("registry.addRecord")}
           </button>
         )}
       </PageHeader>
@@ -125,7 +128,7 @@ function Registry() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Поиск по ФИО"
+              placeholder={t("registry.search")}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               className="pl-9"
@@ -134,10 +137,10 @@ function Registry() {
 
           <Select value={locked ? session!.mahalla! : mahalla} onValueChange={setMahalla} disabled={locked}>
             <SelectTrigger>
-              <SelectValue placeholder="Махалля" />
+              <SelectValue placeholder={t("registry.mahalla")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Все махалли</SelectItem>
+              <SelectItem value="all">{t("registry.allMahallas")}</SelectItem>
               {MAHALLAS.map((m) => (
                 <SelectItem key={m} value={m}>
                   {m}
@@ -148,13 +151,13 @@ function Registry() {
 
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger>
-              <SelectValue placeholder="Статус" />
+              <SelectValue placeholder={t("registry.status")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Все статусы</SelectItem>
+              <SelectItem value="all">{t("registry.allStatuses")}</SelectItem>
               {STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>
-                  {s}
+                  {labels.status(s)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -162,13 +165,13 @@ function Registry() {
 
           <Select value={education} onValueChange={setEducation}>
             <SelectTrigger>
-              <SelectValue placeholder="Уровень образования" />
+              <SelectValue placeholder={t("registry.education")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Все уровни</SelectItem>
+              <SelectItem value="all">{t("registry.allEducation")}</SelectItem>
               {EDUCATION_LEVELS.map((level) => (
                 <SelectItem key={level} value={level}>
-                  {level}
+                  {labels.education(level)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -176,16 +179,16 @@ function Registry() {
 
           <div className="px-1 md:col-span-2 xl:col-span-1">
             <div className="mb-1 text-xs text-muted-foreground">
-              Возраст: {ages[0]}–{ages[1]} лет
+              {t("registry.ageRange", { min: ages[0] ?? 18, max: ages[1] ?? 30 })}
             </div>
             <Slider min={18} max={30} step={1} value={ages} onValueChange={setAges} />
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-5 border-t border-border pt-4 text-sm">
-          <Toggle label="только NEET" checked={onlyNeet} onChange={setOnlyNeet} />
-          <Toggle label="нужна поддержка" checked={onlySupport} onChange={setOnlySupport} />
-          <Toggle label="устаревшие данные" checked={onlyStale} onChange={setOnlyStale} />
+          <Toggle label={t("registry.onlyNeet")} checked={onlyNeet} onChange={setOnlyNeet} />
+          <Toggle label={t("registry.needsSupport")} checked={onlySupport} onChange={setOnlySupport} />
+          <Toggle label={t("registry.staleData")} checked={onlyStale} onChange={setOnlyStale} />
         </div>
       </div>
 
@@ -194,13 +197,13 @@ function Registry() {
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
               <tr>
-                {th("fullName", "ФИО")}
-                {th("age", "Возраст")}
-                {th("mahalla", "Махалля")}
-                {th("educationLevel", "Образование")}
-                <th className="px-4 py-3 text-left font-medium">Статус</th>
-                <th className="px-4 py-3 text-left font-medium">Деятельность</th>
-                {th("lastUpdate", "Актуальность")}
+                {th("fullName", t("registry.col.name"))}
+                {th("age", t("registry.col.age"))}
+                {th("mahalla", t("registry.col.mahalla"))}
+                {th("educationLevel", t("registry.col.education"))}
+                <th className="px-4 py-3 text-left font-medium">{t("registry.col.status")}</th>
+                <th className="px-4 py-3 text-left font-medium">{t("registry.col.activity")}</th>
+                {th("lastUpdate", t("registry.col.freshness"))}
               </tr>
             </thead>
             <tbody>
@@ -218,11 +221,11 @@ function Registry() {
                   </td>
                   <td className="px-4 py-3 tabular-nums text-muted-foreground">{p.age}</td>
                   <td className="px-4 py-3 text-muted-foreground">{p.mahalla}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.educationLevel}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{labels.education(p.educationLevel)}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={p.status as EmploymentStatus} />
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{p.activity}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{labels.activity(p.activity)}</td>
                   <td className="px-4 py-3">
                     <FreshnessDot person={p} />
                   </td>
@@ -233,14 +236,14 @@ function Registry() {
         </div>
         {rows.length === 0 && (
           <EmptyState
-            text="По заданным фильтрам записи не найдены"
-            actionLabel="Сбросить фильтры"
+            text={t("registry.empty")}
+            actionLabel={t("common.resetFilters")}
             onAction={resetFilters}
           />
         )}
         {rows.length > 150 && (
           <div className="border-t border-border p-3 text-center text-xs text-muted-foreground">
-            Показаны первые 150 записей из {rows.length}. Уточните фильтры.
+            {t("registry.truncated", { total: rows.length })}
           </div>
         )}
       </div>
