@@ -205,6 +205,18 @@ export const dictRu = {
   "ai.badge": "ИИ",
   "ai.error": "Не удалось сформировать. Попробуйте ещё раз",
 
+  // Opportunities (подбор вакансий и курсов)
+  "opportunities.title": "Подходящие вакансии и курсы",
+  "opportunities.analyzing": "Подбираю варианты",
+  "opportunities.jobsTitle": "Вакансии по профилю",
+  "opportunities.coursesTitle": "Курсы для развития",
+  "opportunities.emptyJobs": "Пока нет вакансий под текущие навыки — рекомендуем начать с курса.",
+  "opportunities.emptyCourses": "Подходящих курсов не найдено.",
+  "opportunities.free": "бесплатно",
+  "opportunities.paid": "платно",
+  "opportunities.disclaimer":
+    "Подбор сформирован ИИ из каталога программ. Решение о направлении принимает уполномоченный сотрудник.",
+
   // Registry
   "registry.title": "Реестр молодёжи",
   "registry.found": "Найдено записей: {count}",
