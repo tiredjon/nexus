@@ -1,0 +1,361 @@
+{
+  "id": "7284c2a6-094b-4210-a70b-33cb0a525c63",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.history_events": {
+      "name": "history_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "history_events_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "history_person_date_idx": {
+          "name": "history_person_date_idx",
+          "columns": [
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "history_events_person_id_people_id_fk": {
+          "name": "history_events_person_id_people_id_fk",
+          "tableFrom": "history_events",
+          "tableTo": "people",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mahallas": {
+      "name": "mahallas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "smallint",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lat": {
+          "name": "lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lng": {
+          "name": "lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mahallas_name_unique": {
+          "name": "mahallas_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.people": {
+      "name": "people",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "age": {
+          "name": "age",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gender": {
+          "name": "gender",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mahalla_id": {
+          "name": "mahalla_id",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "activity": {
+          "name": "activity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_update": {
+          "name": "last_update",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "needs_support": {
+          "name": "needs_support",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "neet": {
+          "name": "neet",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "neet_review_status": {
+          "name": "neet_review_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "has_profession": {
+          "name": "has_profession",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_interest": {
+          "name": "business_interest",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dropped_studies": {
+          "name": "dropped_studies",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "program": {
+          "name": "program",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "people_mahalla_status_idx": {
+          "name": "people_mahalla_status_idx",
+          "columns": [
+            {
+              "expression": "mahalla_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "people_status_idx": {
+          "name": "people_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "people_last_update_idx": {
+          "name": "people_last_update_idx",
+          "columns": [
+            {
+              "expression": "last_update",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "people_mahalla_id_mahallas_id_fk": {
+          "name": "people_mahalla_id_mahallas_id_fk",
+          "tableFrom": "people",
+          "tableTo": "mahallas",
+          "columnsFrom": [
+            "mahalla_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "people_age_check": {
+          "name": "people_age_check",
+          "value": "\"people\".\"age\" BETWEEN 18 AND 30"
+        },
+        "people_gender_check": {
+          "name": "people_gender_check",
+          "value": "\"people\".\"gender\" IN ('Мужской','Женский')"
+        },
+        "people_status_check": {
+          "name": "people_status_check",
+          "value": "\"people\".\"status\" IN ('Работает','Безработный','Учится','Предприниматель','Другая деятельность','Статус не уточнён','Направлен на программу')"
+        },
+        "people_neet_review_check": {
+          "name": "people_neet_review_check",
+          "value": "\"people\".\"neet_review_status\" IN ('Ожидает проверки','На уточнении','Подтверждено','Флаг снят')"
+        },
+        "people_program_check": {
+          "name": "people_program_check",
+          "value": "\"people\".\"program\" IS NULL OR \"people\".\"program\" IN ('Профессиональное обучение','Содействие в трудоустройстве','Программа поддержки бизнеса','Возвращение к обучению','Молодёжная стажировка')"
+        },
+        "people_outcome_check": {
+          "name": "people_outcome_check",
+          "value": "\"people\".\"outcome\" IS NULL OR \"people\".\"outcome\" IN ('Трудоустроен','Учится','В процессе')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

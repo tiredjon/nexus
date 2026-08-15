@@ -1,0 +1,42 @@
+name: backend-ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: back
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nexus_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nexus_test
+      JWT_SECRET: ci-secret
+      PORT: 3001
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: back/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run migrate
+      - run: npm run seed -- --count 500
+      - run: npm test
+      - name: boot server and hit /health
+        run: |
+          npm run start &
+          npx wait-on -t 20000 http://localhost:3001/health
+          curl -fsS http://localhost:3001/health | grep '"ok"'
