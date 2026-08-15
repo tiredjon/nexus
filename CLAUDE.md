@@ -58,12 +58,21 @@ dev-Postgres `5438` (не пересекается с фронтом на `8080`
 на text+CHECK, миграция `back/drizzle/0000_*.sql` с `pg_trgm` и partial/GIN
 индексами), `GET /health`, CI `.github/workflows/backend-ci.yml`.
 
-Готово (S2): auth на `@fastify/jwt` (HS256, TTL 12ч; `src/plugins/auth.ts` +
-`authenticate` preHandler), `resolveScope` (`src/lib/scope.ts`),
-`POST/GET /api/auth/login|me`, `GET /api/meta/mahallas|dictionaries`,
-константы-порт из фронта (`src/db/constants.ts`), детерминированный сидер v2
-(`generatePeople` порт, `mulberry32(20260814)`; флаги `--count/--anchor/--append/
---lightHistory`, батчи по 1000). Запуск из `back/`:
+Готово (S2 + sync-front-model): auth на `@fastify/jwt` (HS256, TTL 12ч;
+`src/plugins/auth.ts` + `authenticate` preHandler), `POST/GET /api/auth/login|me`,
+`GET /api/meta/mahallas|dictionaries`, константы-порт из фронта
+(`src/db/constants.ts`), детерминированный сидер (`generatePeople` порт,
+`mulberry32(20260814)`; флаги `--count/--anchor/--append/--lightHistory`).
+
+**Важно:** после S1/S2 бэк был синхронизирован с объединённым фронтом
+(sync-front-model): модель `Person` в схеме/сидере — **полная** модель актуального
+`front/src/lib/data.ts` (~40 полей, `skills/languages` как `text[]`, блок
+программы `programOutcome/programRoutedAt/routedBy`, миграция `0001_*.sql`).
+Роли — **5 штук** из `front/src/lib/permissions.ts` (`mahalla_officer`,
+`youth_rep`, `district_officer`, `employment_specialist`, `admin`);
+`resolveScope` (`src/lib/scope.ts`) маппит роль в scope
+`own_mahalla/all_mahallas/routed_only/all_data`. Старые роли `district/mahalla`
+логином не принимаются. Запуск из `back/`:
 
 ```bash
 cd back && npm install

@@ -116,24 +116,46 @@ JWT_SECRET=dev-secret
 Юзработ=7, Козиробод=8, Мустакиллик=9, Бахор=10, Салар=11, Шахрисабз=12`.
 
 ### Таблица `people`
+Полная модель `Person` актуального фронта (`front/src/lib/data.ts`). Колонки в
+камелкейс-полях фронта → snake_case в БД. Синхронизировано в сессии
+sync-front-model (миграция `0001_*.sql` доливает всё, чего не было в S1).
+
 | Колонка | Тип | Ограничения |
 |---|---|---|
 | `id` | `text` | PK, формат `Y-<n>` начиная с `Y-1000` |
-| `full_name` | `text` | NOT NULL |
+| `last_name` / `first_name` / `patronymic` | `text` | NOT NULL (ФИО по частям) |
+| `full_name` | `text` | NOT NULL (собрано `buildFullName`) |
 | `age` | `smallint` | NOT NULL, `CHECK (age BETWEEN 18 AND 30)` |
-| `gender` | `text` | NOT NULL, `CHECK (gender IN ('Мужской','Женский'))` |
+| `birth_date` | `date` | NOT NULL |
+| `gender` | `text` | NOT NULL, `CHECK ∈ ('Мужской','Женский')` |
 | `mahalla_id` | `smallint` | NOT NULL, FK → `mahallas(id)` |
+| `street_block` | `text` | NOT NULL |
+| `education_level` | `text` | NOT NULL, `CHECK` ∈ 5 EDUCATION_LEVELS |
+| `education_institution` / `specialty` | `text` | NULL |
+| `graduation_year` | `smallint` | NULL |
 | `status` | `text` | NOT NULL, `CHECK` ∈ 7 статусов |
 | `activity` | `text` | NOT NULL |
+| `employer` | `text` | NULL |
+| `is_formal_employment` | `boolean` | NOT NULL |
+| `work_experience_months` | `smallint` | NOT NULL |
+| `skills` / `languages` | `text[]` | NOT NULL (PG-массив) |
+| `desired_direction` | `text` | NOT NULL, `CHECK` ∈ 5 DESIRED_DIRECTIONS |
+| `has_driver_license` | `boolean` | NOT NULL |
+| `in_yoshlar_daftari` / `in_ayollar_daftari` / `family_in_temir_daftar` | `boolean` | NOT NULL |
+| `household_size` | `smallint` | NOT NULL |
+| `marital_status` | `text` | NOT NULL, `CHECK` ∈ 2 MARITAL_STATUSES |
+| `has_children` / `is_breadwinner` | `boolean` | NOT NULL |
 | `last_update` | `date` | NOT NULL |
-| `needs_support` | `boolean` | NOT NULL |
-| `neet` | `boolean` | NOT NULL |
+| `last_update_source` | `text` | NOT NULL, `CHECK` ∈ 6 UPDATE_SOURCES |
+| `responsible_officer` | `text` | NOT NULL |
+| `needs_support` / `neet` | `boolean` | NOT NULL |
 | `neet_review_status` | `text` | NOT NULL, `CHECK` ∈ 4 review-статусов |
-| `has_profession` | `boolean` | NOT NULL |
-| `business_interest` | `boolean` | NOT NULL |
-| `dropped_studies` | `boolean` | NOT NULL |
-| `program` | `text` | NULL, `CHECK (program IS NULL OR program IN (…5 программ…))` |
-| `outcome` | `text` | NULL, `CHECK (outcome IS NULL OR outcome IN ('Трудоустроен','Учится','В процессе'))` |
+| `has_profession` / `business_interest` / `dropped_studies` | `boolean` | NOT NULL |
+| `program` | `text` | NULL, `CHECK` ∈ 5 программ |
+| `program_outcome` | `text` | NULL, `CHECK` ∈ 6 PROGRAM_OUTCOMES |
+| `program_routed_at` | `date` | NULL |
+| `routed_by` | `text` | NULL |
+| `outcome` | `text` | NULL, `CHECK` ∈ ('Трудоустроен','Учится','В процессе') |
 | `created_at` | `timestamptz` | NOT NULL DEFAULT `now()` |
 
 ### Таблица `history_events`
@@ -144,6 +166,7 @@ JWT_SECRET=dev-secret
 | `date` | `date` | NOT NULL |
 | `title` | `text` | NOT NULL |
 | `note` | `text` | NULL |
+| `source` | `text` | NULL (напр. `'программа'` у событий маршрутизации) |
 
 ### Индексы (история про большие данные — коммент к каждому в миграции)
 ```sql
@@ -172,42 +195,66 @@ CREATE INDEX history_person_date_idx   ON history_events (person_id, date);
 `code` ∈ `BAD_REQUEST(400)`, `UNAUTHORIZED(401)`, `FORBIDDEN(403)`,
 `NOT_FOUND(404)`, `INTERNAL(500)`.
 
-**JWT payload:** `{ role: "district" | "mahalla", mahalla: string | null }`
-(`mahalla` — **имя** махалли, как в `yr-session` фронта), TTL 12 часов.
+**JWT payload:** `{ role: Role, mahalla: string | null }`, где `Role` — одна из
+**5 ролей фронта** (`front/src/lib/permissions.ts`): `mahalla_officer`,
+`youth_rep`, `district_officer`, `employment_specialist`, `admin`. `mahalla` —
+**имя** махалли, как в `yr-session` фронта. TTL 12 часов.
+> Синхронизировано с актуальным фронтом (сессия sync-front-model). Старые роли
+> `"district"`/`"mahalla"` больше **не** принимаются логином — фронт их не шлёт
+> (в localStorage они мигрируются в `district_officer`/`mahalla_officer` на
+> клиенте через `migrateSession`).
 
-**Правило скоупа (единый helper `resolveScope(req)` в `lib/scope.ts`):**
-- `role="district"` → видит всех; необязательный `?mahalla=<имя>` в списках
-  фильтрует по этой махалле.
-- `role="mahalla"` → все чтения принудительно `WHERE mahalla_id = <своя>`; если
-  в запросе `?mahalla=` и он ≠ своей махалли → **403**. Любая мутация над
-  человеком из чужой махалли → **403**.
+**Правило скоупа (единый helper `resolveScope(req)` в `lib/scope.ts`)** — роль
+маппится в `ScopeKind` (`ROLE_SCOPE`):
+- `mahalla_officer`, `youth_rep` → `own_mahalla`: все чтения принудительно
+  `WHERE mahalla_id = <своя>`; `?mahalla=` ≠ своей → **403**; мутация над чужой
+  махаллёй → **403**.
+- `district_officer` → `all_mahallas`: видит всех; необязательный `?mahalla=<имя>`
+  в списках фильтрует по этой махалле.
+- `employment_specialist` → `routed_only`: все махалли, но только направленные на
+  программу (`program IS NOT NULL`).
+- `admin` → `all_data`: всё без ограничений.
+
+`resolveScope` возвращает `{ role, kind, mahallaName, mahallaId }`; списки/мутации
+(S3+) строят WHERE от `kind`.
 
 **Сериализация `Person` (совпадает с типом фронта):** `mahalla` отдаётся
 **именем-строкой** (JOIN на `mahallas`), не id. camelCase ключи. `history`
 только в `GET /api/people/:id`, отсортирована `date ASC, id ASC`.
 
-`PersonListItem` = все скалярные поля Person в camelCase (`id, fullName, age,
-gender, mahalla, status, activity, lastUpdate, needsSupport, neet,
+`PersonListItem` = все скалярные поля Person в camelCase (полная модель фронта:
+`id, lastName, firstName, patronymic, fullName, age, birthDate, gender, mahalla,
+streetBlock, educationLevel, educationInstitution, graduationYear, specialty,
+status, activity, employer, isFormalEmployment, workExperienceMonths, skills,
+desiredDirection, hasDriverLicense, languages, inYoshlarDaftari, inAyollarDaftari,
+familyInTemirDaftar, householdSize, maritalStatus, hasChildren, isBreadwinner,
+lastUpdate, lastUpdateSource, responsibleOfficer, needsSupport, neet,
 neetReviewStatus, hasProfession, businessInterest, droppedStudies, program,
-outcome`), **без** `history`.
+programOutcome, programRoutedAt, routedBy, outcome`), **без** `history`. `skills`
+и `languages` — массивы строк. Реализуется в S3 (`serialize.ts`).
 
 ### Список эндпоинтов
 
 **1. `GET /health`** — auth нет. Выполняет `SELECT 1`. `200 {"status":"ok","db":"ok"}`,
 при недоступной БД `503 {"status":"error","db":"down"}`.
 
-**2. `POST /api/auth/login`** — auth нет. Тело:
-`{"role":"district"}` или `{"role":"mahalla","mahalla":"Дархан"}`. Неизвестная
-махалля или `mahalla` без роли `mahalla` → `400`. Ответ `200`:
-`{"token":"<jwt>","session":{"role":"…","mahalla":"…"|null}}`.
+**2. `POST /api/auth/login`** — auth нет. Тело: `{"role":<одна из 5 ролей>,
+"mahalla"?:"Дархан"}`. Роли `own_mahalla` (`mahalla_officer`, `youth_rep`)
+**требуют** корректную махаллю; остальным (`district_officer`,
+`employment_specialist`, `admin`) махалля не назначается. Неизвестная/лишняя
+махалля, отсутствие махалли у own_mahalla-роли, неизвестная роль → `400`. Ответ
+`200`: `{"token":"<jwt>","session":{"role":"…","mahalla":"…"|null}}`.
 
 **3. `GET /api/auth/me`** — auth. Ответ `{"role":"…","mahalla":"…"|null}`.
 
 **4. `GET /api/meta/mahallas`** — auth. Ответ `[{id,name,lat,lng}]` (12 шт,
 порядок по `id`).
 
-**5. `GET /api/meta/dictionaries`** — auth. Ответ
-`{"statuses":[…7],"reviewStatuses":[…4],"programs":[…5],"genders":["Мужской","Женский"],"outcomes":["Трудоустроен","Учится","В процессе"]}`.
+**5. `GET /api/meta/dictionaries`** — auth. Ответ (все справочники модели Person):
+`{"statuses":[…7],"reviewStatuses":[…4],"programs":[…5],"programOutcomes":[…6],
+"genders":["Мужской","Женский"],"outcomes":["Трудоустроен","Учится","В процессе"],
+"educationLevels":[…5],"desiredDirections":[…5],"updateSources":[…6],
+"maritalStatuses":[…2]}`.
 
 **6. `GET /api/people`** — auth (авто-скоуп). Query-параметры (все опциональны):
 
@@ -484,6 +531,17 @@ PROGRAMS: Профессиональное обучение, Содействи�
 
 GENDER: Мужской, Женский          OUTCOME: Трудоустроен, Учится, В процессе
 
+PROGRAM_OUTCOMES: Ожидает, Приступил, Завершил, Трудоустроен, Не явился, Отказался
+EDUCATION_LEVELS: Среднее, Среднее специальное, Колледж, Бакалавр, Магистр
+DESIRED_DIRECTIONS: Трудоустройство, Профессиональное обучение,
+                    Предпринимательство, Возвращение к обучению, Не определился
+UPDATE_SOURCES: Подворный обход, Самообращение, Синхронизация реестра,
+                Телефонный звонок, Уточнение данных, Обращение махаллинского комитета
+MARITAL_STATUSES: Не женат/не замужем, Женат/замужем
+
+Роли (из front/src/lib/permissions.ts): mahalla_officer, youth_rep,
+  district_officer, employment_specialist, admin
+
 Заголовки истории (мутации):
   route-to-program        → "Направлен на программу: <program>" (+ note = comment|null)
   confirm-status          → "Статус подтверждён сотрудником"
@@ -496,8 +554,11 @@ GENDER: Мужской, Женский          OUTCOME: Трудоустрое�
   "Актуальный статус: <status>", "Направлен на программу: <program>",
   "Результат: <outcome>"
 ```
-Пулы имён/деятельности (`MALE/FEMALE/SURNAMES/PATRON/JOBS/STUDIES/BUSINESS/
-OTHER`) — скопировать из `data.ts` строки 90–175 без изменений.
+Пулы имён/деятельности из актуального `data.ts` — скопированы в
+`back/src/db/constants.ts` без изменений: `MALE/FEMALE/SURNAMES`, `SKILL_POOL`,
+`LANGUAGE_POOL`, `INSTITUTIONS`, `SPECIALTIES`, `EMPLOYERS`,
+`JOBS/STUDIES/BUSINESS/OTHER`. (ФИО собирается `buildFullName` с суффиксом
+`угли`/`кизи`, отдельного `PATRON`-массива больше нет.)
 
 ---
 
@@ -623,6 +684,35 @@ jobs:
     `fastify-plugin` — без неё декораторы JWT инкапсулируются и не видны роутам.
   - Локальный прогон зелёный: `typecheck` → `migrate` → `seed --count 250/5000` →
     `test` (17/17) → boot + smoke (login/me/meta/dictionaries, 401/400).
+  - ⚠️ **Частично пересобрано в sync-front-model** (см. ниже): 2-ролевой auth,
+    старая модель Person и старый `generatePeople` заменены под актуальный фронт.
+- [x] **sync-front-model** — синхронизация S1/S2 с объединённым фронтом. PR: #4
+  - Причина: фронт был пересобран (мерж двух версий), модель `Person` выросла с
+    16 до ~40 полей, ролей стало 5 вместо 2. S1/S2 портировались со старого
+    `data.ts` → стали несовместимы.
+  - `constants.ts`: добавлены `PROGRAM_OUTCOMES`, `EDUCATION_LEVELS`,
+    `DESIRED_DIRECTIONS`, `UPDATE_SOURCES`, `MARITAL_STATUSES`, пулы `SKILL_POOL/
+    LANGUAGE_POOL/INSTITUTIONS/SPECIALTIES/EMPLOYERS`; тип `Person` и
+    `HistoryEvent.source` расширены под актуальный фронт.
+  - `schema.ts` + миграция `0001_glossy_vengeance.sql`: ~28 новых колонок people
+    (ФИО по частям, образование, занятость, `skills/languages` как `text[]`,
+    регистры, семья, `last_update_source`, блок программы) + CHECK-и;
+    `history_events.source`. Миграция — только `ADD COLUMN`/`ADD CONSTRAINT`,
+    накатывается на пустые таблицы (в CI/локально миграция идёт до сида).
+  - `seed.ts` **v3**: порт нового `generatePeople` (тот же seed 20260814, второй
+    проход `routeCandidates` с `programOutcome`), все новые колонки; флаги
+    `--count/--anchor/--append/--lightHistory` сохранены.
+  - Auth: `SessionPayload.role` = одна из 5 ролей; `lib/scope.ts` — `ROLES`,
+    `ROLE_SCOPE` (own_mahalla/all_mahallas/routed_only/all_data), `resolveScope`
+    возвращает `{role, kind, mahallaName, mahallaId}`; login-валидация под роли;
+    `dictionaries` расширен новыми справочниками.
+  - Тесты: `auth.test.ts` (13, под 5 ролей), новый `scope.test.ts` (6,
+    role→scope), `seed.test.ts` (5, +проверка новых NOT NULL полей). Итого 26/26.
+  - **Отклонения:** старые роли `"district"/"mahalla"` логином больше не
+    принимаются (фронт их не шлёт). `resolveScope` пока только вычисляет scope —
+    применение WHERE (own/routed/all) будет в S3/S5.
+  - Локально зелёно: `typecheck` → `migrate` → `seed --count 250/5000(+light)` →
+    `test` (26/26) → boot + smoke (5 ролей, 400 на чужую махаллю/старую роль).
 - [ ] **S3** — реестр (`GET /api/people`, `/:id`). PR: —
 - [ ] **S4** — мутации (пп.8–11). PR: —
 - [ ] **S5** — агрегаты (`/api/stats/*`). PR: —

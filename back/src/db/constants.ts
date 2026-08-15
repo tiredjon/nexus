@@ -1,6 +1,6 @@
-// Порт из front/src/lib/data.ts — байт-в-байт. Русские доменные строки, пулы
-// имён/деятельности и mulberry32 не переводить и не «исправлять»: сидер должен
-// давать те же данные, что и клиентский генератор фронта.
+// Порт из front/src/lib/data.ts — байт-в-байт по доменным строкам. Русские
+// значения и пулы имён не переводить и не «исправлять»: сидер обязан давать те
+// же данные и тот же контракт, что и актуальный фронт.
 
 export const MAHALLAS = [
   "Дархан",
@@ -70,6 +70,52 @@ export const PROGRAMS = [
 
 export type Program = (typeof PROGRAMS)[number];
 
+export const PROGRAM_OUTCOMES = [
+  "Ожидает",
+  "Приступил",
+  "Завершил",
+  "Трудоустроен",
+  "Не явился",
+  "Отказался",
+] as const;
+
+export type ProgramOutcome = (typeof PROGRAM_OUTCOMES)[number];
+
+export const EDUCATION_LEVELS = [
+  "Среднее",
+  "Среднее специальное",
+  "Колледж",
+  "Бакалавр",
+  "Магистр",
+] as const;
+
+export type EducationLevel = (typeof EDUCATION_LEVELS)[number];
+
+export const DESIRED_DIRECTIONS = [
+  "Трудоустройство",
+  "Профессиональное обучение",
+  "Предпринимательство",
+  "Возвращение к обучению",
+  "Не определился",
+] as const;
+
+export type DesiredDirection = (typeof DESIRED_DIRECTIONS)[number];
+
+export const UPDATE_SOURCES = [
+  "Подворный обход",
+  "Самообращение",
+  "Синхронизация реестра",
+  "Телефонный звонок",
+  "Уточнение данных",
+  "Обращение махаллинского комитета",
+] as const;
+
+export type UpdateSource = (typeof UPDATE_SOURCES)[number];
+
+export const MARITAL_STATUSES = ["Не женат/не замужем", "Женат/замужем"] as const;
+
+export type MaritalStatus = (typeof MARITAL_STATUSES)[number];
+
 export const GENDERS = ["Мужской", "Женский"] as const;
 export const OUTCOMES = ["Трудоустроен", "Учится", "В процессе"] as const;
 
@@ -77,17 +123,43 @@ export type HistoryEvent = {
   date: string;
   title: string;
   note?: string | undefined;
+  source?: string | undefined;
 };
 
 export type Person = {
   id: string;
+  lastName: string;
+  firstName: string;
+  patronymic: string;
   fullName: string;
   age: number;
+  birthDate: string;
   gender: "Мужской" | "Женский";
   mahalla: Mahalla;
+  streetBlock: string;
+  educationLevel: EducationLevel;
+  educationInstitution: string | null;
+  graduationYear: number | null;
+  specialty: string | null;
   status: EmploymentStatus;
   activity: string;
+  employer: string | null;
+  isFormalEmployment: boolean;
+  workExperienceMonths: number;
+  skills: string[];
+  desiredDirection: DesiredDirection;
+  hasDriverLicense: boolean;
+  languages: string[];
+  inYoshlarDaftari: boolean;
+  inAyollarDaftari: boolean;
+  familyInTemirDaftar: boolean;
+  householdSize: number;
+  maritalStatus: MaritalStatus;
+  hasChildren: boolean;
+  isBreadwinner: boolean;
   lastUpdate: string;
+  lastUpdateSource: UpdateSource;
+  responsibleOfficer: string;
   needsSupport: boolean;
   neet: boolean;
   neetReviewStatus: ReviewStatus;
@@ -96,10 +168,13 @@ export type Person = {
   droppedStudies: boolean;
   history: HistoryEvent[];
   program: Program | null;
+  programOutcome: ProgramOutcome | null;
+  programRoutedAt: string | null;
+  routedBy: string | null;
   outcome: "Трудоустроен" | "Учится" | "В процессе" | null;
 };
 
-// Пулы имён/деятельности — data.ts, строки 90–175, без изменений.
+// Пулы имён/деятельности — из актуального data.ts, без изменений.
 export const MALE = [
   "Азиз",
   "Жасур",
@@ -150,8 +225,49 @@ export const SURNAMES = [
   "Кодиров",
   "Файзиев",
 ];
-export const PATRON = ["угли", "кизи"];
-
+export const SKILL_POOL = [
+  "сварка",
+  "водительские права B",
+  "1С",
+  "английский язык",
+  "ремонт техники",
+  "швейное дело",
+  "SMM",
+  "маркетинг",
+  "бухгалтерия",
+  "продажи",
+];
+export const LANGUAGE_POOL = ["узбекский", "русский", "английский"] as const;
+export const INSTITUTIONS = [
+  "ТУИТ",
+  "ТашГЭУ",
+  "ТГТУ",
+  "Колледж связи",
+  "Медицинский колледж",
+  "Педагогический институт",
+  "Ташкентский государственный экономический университет",
+  "Национальный университет Узбекистана",
+];
+export const SPECIALTIES = [
+  "Бухгалтерский учёт",
+  "Сварочное дело",
+  "Информационные системы",
+  "Экономика",
+  "Педагогика",
+  "Медицинское дело",
+  "Логистика",
+  "Строительство",
+];
+export const EMPLOYERS = [
+  "Uzum Market",
+  "Beeline Uzbekistan",
+  "HUMO",
+  "Artel Electronics",
+  "Kapitalbank",
+  "O'zbekiston temir yo'llari",
+  "Toshkent shahar hokimiyati",
+  "Mediapark",
+];
 export const JOBS = [
   "Оператор call-центра",
   "Продавец-консультант",
