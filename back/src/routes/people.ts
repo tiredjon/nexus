@@ -13,8 +13,12 @@ import {
 } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { MAHALLA_ID_BY_NAME, STATUSES } from "../db/constants.js";
-import { db } from "../db/client.js";
+import {
+  MAHALLA_ID_BY_NAME,
+  STATUSES,
+  type HistoryEvent,
+} from "../db/constants.js";
+import { db, type Runner } from "../db/client.js";
 import { historyEvents, mahallas, people } from "../db/schema.js";
 import { httpError } from "../lib/errors.js";
 import { resolveScope, type Scope } from "../lib/scope.js";
@@ -23,6 +27,41 @@ import { toPerson, toPersonListItem, type PersonRow } from "../lib/serialize.js"
 // Все скалярные колонки people + имя махалли из JOIN — ровно то, что ждёт
 // toPersonListItem/toPerson.
 const personColumns = { ...getTableColumns(people), mahallaName: mahallas.name };
+
+// Карточка человека: строка + история. Используется и здесь (п.7), и в
+// мутациях (пп.8–11), которые возвращают тот же полный Person.
+export async function fetchPersonRow(
+  runner: Runner,
+  id: string,
+): Promise<PersonRow | undefined> {
+  const [row] = await runner
+    .select(personColumns)
+    .from(people)
+    .innerJoin(mahallas, eq(people.mahallaId, mahallas.id))
+    .where(eq(people.id, id));
+  return row;
+}
+
+export async function fetchHistory(runner: Runner, id: string): Promise<HistoryEvent[]> {
+  const events = await runner
+    .select({
+      date: historyEvents.date,
+      title: historyEvents.title,
+      note: historyEvents.note,
+      source: historyEvents.source,
+    })
+    .from(historyEvents)
+    .where(eq(historyEvents.personId, id))
+    .orderBy(asc(historyEvents.date), asc(historyEvents.id));
+
+  // В контракте note/source опциональны — NULL из БД отдаём как отсутствующие.
+  return events.map((e) => ({
+    date: e.date,
+    title: e.title,
+    note: e.note ?? undefined,
+    source: e.source ?? undefined,
+  }));
+}
 
 const ListQuerySchema = z.object({
   query: z.string().optional(),
@@ -86,8 +125,8 @@ function scopeConditions(scope: Scope, requestedMahalla?: string): SQL[] {
   return conds;
 }
 
-// Виден ли конкретный человек в текущем скоупе (для GET /people/:id).
-function assertVisible(scope: Scope, row: PersonRow): void {
+// Виден ли конкретный человек в текущем скоупе (GET /people/:id и мутации).
+export function assertVisible(scope: Scope, row: PersonRow | typeof people.$inferSelect): void {
   if (scope.kind === "own_mahalla" && row.mahallaId !== scope.mahallaId) {
     throw httpError("FORBIDDEN", "Доступ к чужой махалле запрещён");
   }
@@ -158,36 +197,12 @@ export async function peopleRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     const scope = resolveScope(req);
 
-    const [row] = await db
-      .select(personColumns)
-      .from(people)
-      .innerJoin(mahallas, eq(people.mahallaId, mahallas.id))
-      .where(eq(people.id, id));
-
+    const row = await fetchPersonRow(db, id);
     if (!row) {
       throw httpError("NOT_FOUND", "Человек не найден");
     }
     assertVisible(scope, row);
 
-    const events = await db
-      .select({
-        date: historyEvents.date,
-        title: historyEvents.title,
-        note: historyEvents.note,
-        source: historyEvents.source,
-      })
-      .from(historyEvents)
-      .where(eq(historyEvents.personId, id))
-      .orderBy(asc(historyEvents.date), asc(historyEvents.id));
-
-    // В контракте note/source опциональны — NULL из БД отдаём как отсутствующие.
-    const history = events.map((e) => ({
-      date: e.date,
-      title: e.title,
-      note: e.note ?? undefined,
-      source: e.source ?? undefined,
-    }));
-
-    return toPerson(row, history);
+    return toPerson(row, await fetchHistory(db, id));
   });
 }

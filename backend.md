@@ -742,6 +742,44 @@ jobs:
     (district 250 / Дархан 21 / routed 40 / admin 250), `stale` — 64 = SQL,
     `EXPLAIN` подтверждает работу `people_full_name_trgm_idx` на ILIKE и
     `people_mahalla_status_idx` на скоуп-фильтре.
-- [ ] **S4** — мутации (пп.8–11). PR: —
+- [x] **S4** — мутации (пп.8–11). PR: —
+  - `src/routes/mutations.ts` — 4 эндпоинта. Общий каркас `mutatePerson()`: внутри
+    `db.transaction` строка людей лочится `SELECT … FOR UPDATE` (только по
+    `people`, без JOIN), затем скоуп-проверка, апдейт полей, вставка history и
+    сборка ответа тем же `toPerson()` — полный Person с историей, фронту
+    перезапрашивать карточку не нужно.
+  - «Сегодня» везде считает БД: `CURRENT_DATE` подставляется и в поля-даты, и в
+    `history_events.date` в одной транзакции (никакой даты с хоста).
+  - Эффекты по спеке: route-to-program → `program/status='Направлен на программу'/
+    outcome='В процессе'/neet_review_status='Подтверждено'/last_update`;
+    confirm-status → `last_update` + `neet_review_status='Подтверждено'` **только
+    при `neet=true`**; request-clarification → `neet_review_status='На уточнении'`,
+    `last_update` **не трогается**; review-status → статус + `last_update`.
+    Заголовки истории — байт-в-байт из §6.
+  - Скоуп переиспользован из S3 (`assertVisible`): чужая махалля → 403, роль
+    own_mahalla без махалли → 403, `routed_only` (employment_specialist) может
+    мутировать только людей с `program IS NOT NULL`; неизвестный id → 404;
+    невалидная программа / review-статус / пустое тело → 400.
+  - Рефакторинг без изменения поведения: из `routes/people.ts` вынесены
+    `fetchPersonRow()`, `fetchHistory()`, `assertVisible()` (их же зовёт п.7),
+    в `db/client.ts` добавлен тип `Runner = DB | Tx` — хелперы одинаково
+    работают внутри транзакции и снаружи.
+  - Тесты: `test/mutations.test.ts` (26) на фикстуре S3 — по каждому эндпоинту
+    эффекты на поля, точный заголовок и `note/source` события, изменение/
+    неизменение `last_update`, форма ответа, все 4 review-статуса, 400/401/403/404,
+    откат при 403 (запись не изменилась), `confirm-status` на не-NEET не трогает
+    `neet_review_status`. Итого по репозиторию 91/91 зелёных.
+  - **Отклонения:** (1) route-to-program дополнительно проставляет
+    `program_outcome='Ожидает'`, `program_routed_at=CURRENT_DATE`, `routed_by` и
+    `source='программа'` у события истории — спека §3 п.8 этих полей не
+    перечисляет, но они есть в модели и их пишет фронт (`store.tsx:routeToProgram`),
+    иначе страница «Программы» показывала бы пустые колонки. `routed_by` собран
+    как во фронте: «<подпись роли> · <махалля>», подписи ролей портированы в
+    `ROLE_LABELS` (`lib/scope.ts`) из `front/src/lib/permissions.ts`.
+    (2) `applyDerivedFields` фронта (пересчёт `neet/hasProfession/…`) на бэкенд не
+    портировался — спека мутациям этого не предписывает.
+  - Локальный прогон зелёный: `typecheck` → `migrate` → `seed --count 250` →
+    `test` (91/91) → boot + смоук всех 4 мутаций на живых данных (400 на плохую
+    программу, 404 на неизвестный id, 401 без токена).
 - [ ] **S5** — агрегаты (`/api/stats/*`). PR: —
 - [ ] **S6** — демо больших данных + полировка. PR: —

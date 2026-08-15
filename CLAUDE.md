@@ -85,6 +85,19 @@ NULL`, `all_mahallas`/`all_data` → без ограничений. Сериал
 `toPersonListItem()` (`src/lib/serialize.ts`) отдают полную модель Person с
 `mahalla` именем-строкой.
 
+Готово (S4): мутации карточки — `POST /api/people/:id/route-to-program` (п.8),
+`confirm-status` (п.9), `request-clarification` (п.10), `PATCH .../review-status`
+(п.11). Все четыре в `src/routes/mutations.ts` через общий `mutatePerson()`: одна
+транзакция, `SELECT … FOR UPDATE` по `people`, проверка скоупа тем же
+`assertVisible()`, что и чтение, апдейт + вставка history, ответ — полный `Person`.
+«Сегодня» = `CURRENT_DATE` на стороне БД. Важные тонкости: у
+`request-clarification` `last_update` **не меняется**; `confirm-status` трогает
+`neet_review_status` только когда `neet = true`; `route-to-program` дополнительно
+пишет `programOutcome/programRoutedAt/routedBy` и `source='программа'` в историю —
+как это делает фронт. Хелперы `fetchPersonRow/fetchHistory/assertVisible` вынесены
+в `routes/people.ts` и переиспользуются мутациями (тип `Runner` в `db/client.ts`
+позволяет звать их и внутри транзакции).
+
 Запуск из `back/`:
 
 ```bash

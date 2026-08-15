@@ -27,6 +27,16 @@ export const ROLE_SCOPE: Record<Role, ScopeKind> = {
   admin: "all_data",
 };
 
+// Подписи ролей — дословно из front/src/lib/permissions.ts. Нужны мутациям:
+// в `routed_by` фронт пишет «<подпись роли> · <махалля>».
+export const ROLE_LABELS: Record<Role, string> = {
+  mahalla_officer: "Уполномоченный сотрудник махалли",
+  youth_rep: "Представитель махалли по работе с молодёжью",
+  district_officer: "Уполномоченный сотрудник районного хокимията",
+  employment_specialist: "Уполномоченный специалист по занятости и социальной поддержке",
+  admin: "Администратор системы",
+};
+
 export function roleNeedsMahalla(role: Role): boolean {
   return ROLE_SCOPE[role] === "own_mahalla";
 }
