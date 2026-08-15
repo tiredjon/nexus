@@ -72,7 +72,33 @@ dev-Postgres `5438` (не пересекается с фронтом на `8080`
 `youth_rep`, `district_officer`, `employment_specialist`, `admin`);
 `resolveScope` (`src/lib/scope.ts`) маппит роль в scope
 `own_mahalla/all_mahallas/routed_only/all_data`. Старые роли `district/mahalla`
-логином не принимаются. Запуск из `back/`:
+логином не принимаются.
+
+Готово (S3): реестр — `GET /api/people` (п.6) с фильтрами, поиском, пагинацией и
+сортировкой русской коллацией; `GET /api/people/:id` (п.7) с полным профилем и
+историей. Вся фильтрация в SQL: динамический WHERE через drizzle `and()`, `total`
+отдельным `count(*)`, whitelist-мапа сортировок (значение из query никогда не
+попадает в `ORDER BY`), вторичный ключ по `id` — иначе страницы «плывут» при
+равных значениях. Скоуп берётся из `resolveScope().kind`: `own_mahalla` → только
+своя махалля (чужой `?mahalla=` → 403), `routed_only` → только `program IS NOT
+NULL`, `all_mahallas`/`all_data` → без ограничений. Сериализаторы `toPerson()`/
+`toPersonListItem()` (`src/lib/serialize.ts`) отдают полную модель Person с
+`mahalla` именем-строкой.
+
+Готово (S4): мутации карточки — `POST /api/people/:id/route-to-program` (п.8),
+`confirm-status` (п.9), `request-clarification` (п.10), `PATCH .../review-status`
+(п.11). Все четыре в `src/routes/mutations.ts` через общий `mutatePerson()`: одна
+транзакция, `SELECT … FOR UPDATE` по `people`, проверка скоупа тем же
+`assertVisible()`, что и чтение, апдейт + вставка history, ответ — полный `Person`.
+«Сегодня» = `CURRENT_DATE` на стороне БД. Важные тонкости: у
+`request-clarification` `last_update` **не меняется**; `confirm-status` трогает
+`neet_review_status` только когда `neet = true`; `route-to-program` дополнительно
+пишет `programOutcome/programRoutedAt/routedBy` и `source='программа'` в историю —
+как это делает фронт. Хелперы `fetchPersonRow/fetchHistory/assertVisible` вынесены
+в `routes/people.ts` и переиспользуются мутациями (тип `Runner` в `db/client.ts`
+позволяет звать их и внутри транзакции).
+
+Запуск из `back/`:
 
 ```bash
 cd back && npm install
