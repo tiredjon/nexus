@@ -63,7 +63,16 @@ dev-Postgres `5438` (не пересекается с фронтом на `8080`
 `POST/GET /api/auth/login|me`, `GET /api/meta/mahallas|dictionaries`,
 константы-порт из фронта (`src/db/constants.ts`), детерминированный сидер v2
 (`generatePeople` порт, `mulberry32(20260814)`; флаги `--count/--anchor/--append/
---lightHistory`, батчи по 1000). Запуск из `back/`:
+--lightHistory`, батчи по 1000).
+
+Готово (S3): реестр — `GET /api/people` (пп.6) с фильтрами, поиском, пагинацией,
+сортировкой русской коллацией; `GET /api/people/:id` (п.7) с полным профилем и
+историей. Динамический WHERE через drizzle `and()`; два запроса (SELECT +
+COUNT); whitelist-сортировка (никогда не интерполировать); скоуп (mahalla-роль
+видит только свою, district видит всех). Сериализаторы `toPerson()`/
+`toPersonListItem()` с JOIN на `mahallas.name`.
+
+Запуск из `back/`:
 
 ```bash
 cd back && npm install
