@@ -47,6 +47,9 @@ const iso = (daysAgo: number) =>
 export const FIXTURE_NOW = iso(0);
 export const FIXTURE_RECENT = iso(10);
 export const FIXTURE_STALE = iso(100);
+// Самая старая запись — на ней проверяется порядок «сначала протухшие»
+// (attention на дашборде, колонки канбана).
+export const FIXTURE_OLDEST = iso(120);
 
 // Заполняет обязательные поля модели, которые конкретный тест не проверяет —
 // иначе каждая запись фикстуры была бы на 40 строк. Значимые поля тесты
@@ -297,6 +300,133 @@ export async function seedFixture(): Promise<void> {
       date: FIXTURE_RECENT,
       title: "Направлен на программу: Профессиональное обучение",
     },
+  ]);
+}
+
+// Фикстура для агрегатов (S5): 24 человека в трёх махаллях, остальные девять
+// пустые — на них проверяются нулевые строки byMahalla и share = 0.
+// ФИО не важны (агрегаты по ним не считают), значимы только status/neet/
+// neetReviewStatus/program/outcome/lastUpdate.
+//
+// Дархан (id 1) — 12: Y-2000..Y-2011
+// Буюк Ипак Йули (id 2) — 8: Y-2012..Y-2019
+// Олтинтепа (id 3) — 4: Y-2020..Y-2023
+//
+// Ожидаемые числа по всему срезу (district_officer):
+//   total 24, employed 7, unemployed 5, neet 9, unknown 3, stale 5
+//   program IS NOT NULL: Y-2008, Y-2009, Y-2016, Y-2022 (4)
+//   outcome IN (Трудоустроен, Учится): Y-2009, Y-2016 (2)
+export async function seedStatsFixture(): Promise<void> {
+  await seedMahallas();
+
+  const p = (id: string, over: Partial<PersonInsert>) => person({ id, ...over });
+
+  await db.insert(people).values([
+    // --- Дархан ---
+    p("Y-2000", { mahallaId: 1, status: "Работает" }),
+    p("Y-2001", { mahallaId: 1, status: "Работает" }),
+    p("Y-2002", { mahallaId: 1, status: "Предприниматель" }),
+    p("Y-2003", { mahallaId: 1, status: "Учится" }),
+    p("Y-2004", { mahallaId: 1, status: "Учится", lastUpdate: FIXTURE_STALE }),
+    // Ожидают проверки: даты разные, чтобы порядок attention был однозначным.
+    p("Y-2005", {
+      mahallaId: 1,
+      status: "Безработный",
+      neet: true,
+      neetReviewStatus: "Ожидает проверки",
+      lastUpdate: FIXTURE_STALE,
+    }),
+    p("Y-2006", {
+      mahallaId: 1,
+      status: "Безработный",
+      neet: true,
+      neetReviewStatus: "Ожидает проверки",
+      lastUpdate: FIXTURE_RECENT,
+    }),
+    p("Y-2007", {
+      mahallaId: 1,
+      status: "Статус не уточнён",
+      neet: true,
+      neetReviewStatus: "На уточнении",
+    }),
+    // Направлены на программу: один NEET, второй уже с исходом.
+    p("Y-2008", {
+      mahallaId: 1,
+      status: "Направлен на программу",
+      neet: true,
+      neetReviewStatus: "Подтверждено",
+      program: "Профессиональное обучение",
+      programOutcome: "Приступил",
+      programRoutedAt: FIXTURE_RECENT,
+      outcome: "В процессе",
+    }),
+    p("Y-2009", {
+      mahallaId: 1,
+      status: "Направлен на программу",
+      neetReviewStatus: "Подтверждено",
+      program: "Содействие в трудоустройстве",
+      programOutcome: "Трудоустроен",
+      programRoutedAt: FIXTURE_RECENT,
+      outcome: "Трудоустроен",
+    }),
+    p("Y-2010", { mahallaId: 1, status: "Другая деятельность" }),
+    p("Y-2011", { mahallaId: 1, status: "Работает", lastUpdate: FIXTURE_STALE }),
+
+    // --- Буюк Ипак Йули ---
+    p("Y-2012", { mahallaId: 2, status: "Работает" }),
+    p("Y-2013", { mahallaId: 2, status: "Учится" }),
+    p("Y-2014", {
+      mahallaId: 2,
+      status: "Безработный",
+      neet: true,
+      neetReviewStatus: "Ожидает проверки",
+    }),
+    // NEET с закрытой проверкой — попадает в канбан по ветке OR neet.
+    p("Y-2015", { mahallaId: 2, status: "Безработный", neet: true }),
+    p("Y-2016", {
+      mahallaId: 2,
+      status: "Направлен на программу",
+      neet: true,
+      neetReviewStatus: "Подтверждено",
+      program: "Программа поддержки бизнеса",
+      programOutcome: "Завершил",
+      programRoutedAt: FIXTURE_RECENT,
+      outcome: "Учится",
+    }),
+    // Не-NEET с открытой проверкой — попадает в канбан по второй ветке.
+    p("Y-2017", {
+      mahallaId: 2,
+      status: "Статус не уточнён",
+      neetReviewStatus: "На уточнении",
+      lastUpdate: FIXTURE_STALE,
+    }),
+    p("Y-2018", { mahallaId: 2, status: "Предприниматель" }),
+    p("Y-2019", { mahallaId: 2, status: "Другая деятельность" }),
+
+    // --- Олтинтепа ---
+    p("Y-2020", { mahallaId: 3, status: "Работает" }),
+    p("Y-2021", {
+      mahallaId: 3,
+      status: "Безработный",
+      neet: true,
+      neetReviewStatus: "Ожидает проверки",
+      lastUpdate: FIXTURE_OLDEST,
+    }),
+    p("Y-2022", {
+      mahallaId: 3,
+      status: "Направлен на программу",
+      neetReviewStatus: "Подтверждено",
+      program: "Возвращение к обучению",
+      programOutcome: "Ожидает",
+      programRoutedAt: FIXTURE_RECENT,
+      outcome: "В процессе",
+    }),
+    p("Y-2023", {
+      mahallaId: 3,
+      status: "Статус не уточнён",
+      neet: true,
+      neetReviewStatus: "Подтверждено",
+    }),
   ]);
 }
 
