@@ -19,7 +19,6 @@ import { EmptyState, NeetBadge, StatusBadge } from "@/components/common";
 import { EditPersonDialog, type AiPrefill } from "@/components/EditPersonDialog";
 import { FieldNoteSection } from "@/components/FieldNoteSection";
 import { OpportunityMatch } from "@/components/OpportunityMatch";
-import { RecommendationReason } from "@/components/RecommendationReason";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,75 +51,6 @@ export const Route = createFileRoute("/person/$id")({
   }),
   component: PersonPage,
 });
-
-type Suggestion = { program: Program; reason: string; icon: React.ElementType; priority: number };
-
-function socialSuffix(p: Person) {
-  if (p.familyInTemirDaftar || p.isBreadwinner) {
-    return "; семья в социальном реестре — приоритет мерам с быстрым выходом на доход";
-  }
-  return "";
-}
-
-function suggestions(p: Person): Omit<Suggestion, "priority">[] {
-  const jobless = p.status === "Безработный" || p.status === "Статус не уточнён";
-  const list: Suggestion[] = [];
-
-  if (p.graduationYear === null && p.status !== "Учится") {
-    list.push({
-      priority: 10,
-      program: "Возвращение к обучению",
-      reason: `Образование не завершено (${p.educationLevel})${socialSuffix(p)}`,
-      icon: BookOpen,
-    });
-  }
-
-  if (p.desiredDirection === "Предпринимательство") {
-    list.push({
-      priority: 20,
-      program: "Программа поддержки бизнеса",
-      reason: `Отмечен интерес к предпринимательству, состав семьи ${p.householdSize} чел.${socialSuffix(p)}`,
-      icon: Store,
-    });
-  }
-
-  if (jobless && p.skills.length === 0 && p.workExperienceMonths === 0) {
-    list.push({
-      priority: 30,
-      program: "Профессиональное обучение",
-      reason: `${p.age} лет, ${p.educationLevel}, опыта нет — требуется базовая профподготовка${socialSuffix(p)}`,
-      icon: GraduationCap,
-    });
-  }
-
-  if (jobless && p.skills.length > 0) {
-    list.push({
-      priority: 40,
-      program: "Содействие в трудоустройстве",
-      reason: `Есть навыки: ${p.skills.join(", ")}. Опыт ${formatWorkExperience(p.workExperienceMonths)} — подходит прямое трудоустройство${socialSuffix(p)}`,
-      icon: Briefcase,
-    });
-  }
-
-  if (list.length === 0) {
-    list.push({
-      priority: 100,
-      program: "Молодёжная стажировка",
-      reason: `Устойчивый статус; возможна поддержка карьерного роста${socialSuffix(p)}`,
-      icon: Briefcase,
-    });
-  }
-
-  const seen = new Set<Program>();
-  return list
-    .sort((a, b) => a.priority - b.priority)
-    .filter((s) => {
-      if (seen.has(s.program)) return false;
-      seen.add(s.program);
-      return true;
-    })
-    .map(({ priority: _, ...rest }) => rest);
-}
 
 function PersonPage() {
   const { t } = useLanguage();
@@ -342,46 +272,6 @@ function PersonPage() {
               </li>
             ))}
           </ol>
-        </section>
-
-        <section className="rounded-xl border border-border bg-card p-6">
-          <h2 className="text-sm font-semibold">{t("person.section.recommendations")}</h2>
-          <div className="mt-4 space-y-3">
-            {suggestions(person).map((s) => (
-              <div key={s.program} className="rounded-xl border border-border p-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <s.icon className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">{labels.program(s.program)}</div>
-                    <RecommendationReason person={person} program={s.program} />
-                  </div>
-                  {roleConfig?.can.routeToProgram ? (
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setProgram(s.program);
-                        setOpen(true);
-                      }}
-                    >
-                      {t("person.route")}
-                    </Button>
-                  ) : (
-                    <span className="max-w-28 text-right text-xs text-muted-foreground">
-                      {t("person.routeNote")}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          {person.program && (
-            <p className="mt-4 rounded-lg bg-success/10 p-3 text-xs text-success">
-              {t("person.alreadyRouted")} {labels.program(person.program)}
-            </p>
-          )}
-          <p className="mt-4 text-xs text-muted-foreground">{t("person.recRules")}</p>
         </section>
 
         <OpportunityMatch person={person} />
