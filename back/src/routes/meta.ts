@@ -1,11 +1,16 @@
 import { asc } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
+  DESIRED_DIRECTIONS,
+  EDUCATION_LEVELS,
   GENDERS,
+  MARITAL_STATUSES,
   OUTCOMES,
+  PROGRAM_OUTCOMES,
   PROGRAMS,
   REVIEW_STATUSES,
   STATUSES,
+  UPDATE_SOURCES,
 } from "../db/constants.js";
 import { db } from "../db/client.js";
 import { mahallas } from "../db/schema.js";
@@ -29,8 +34,13 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       statuses: STATUSES,
       reviewStatuses: REVIEW_STATUSES,
       programs: PROGRAMS,
+      programOutcomes: PROGRAM_OUTCOMES,
       genders: GENDERS,
       outcomes: OUTCOMES,
+      educationLevels: EDUCATION_LEVELS,
+      desiredDirections: DESIRED_DIRECTIONS,
+      updateSources: UPDATE_SOURCES,
+      maritalStatuses: MARITAL_STATUSES,
     };
   });
 }

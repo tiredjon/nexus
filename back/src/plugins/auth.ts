@@ -2,11 +2,13 @@ import fastifyJwt from "@fastify/jwt";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import { config } from "../config.js";
+import type { Role } from "../lib/scope.js";
 
-// JWT payload — совпадает с yr-session фронта: mahalla это имя махалли (или null
-// для district-роли). TTL 12 часов.
+// JWT payload — совпадает с yr-session фронта: role это одна из 5 ролей
+// permissions.ts, mahalla — имя махалли (или null для ролей без своей махалли).
+// TTL 12 часов.
 export type SessionPayload = {
-  role: "district" | "mahalla";
+  role: Role;
   mahalla: string | null;
 };
 

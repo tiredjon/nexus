@@ -54,4 +54,12 @@ describe("seed script", () => {
     );
     expect(rows[0]!.n).toBe(12);
   });
+
+  it("новые NOT NULL поля заполнены (education_level, skills, marital_status)", async () => {
+    const { rows } = await db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM people
+          WHERE education_level IS NULL OR skills IS NULL OR marital_status IS NULL`,
+    );
+    expect(rows[0]!.n).toBe(0);
+  });
 });
