@@ -1,6 +1,9 @@
-// TODO: заменить тела функций на вызов LLM API.
-// Компоненты меняться не должны — контракт функций фиксирован.
+// ИИ-фичи фронта. Публичные функции ходят в Gemini через серверную обёртку
+// (geminiGenerate), а при любой ошибке (нет ключей, лимит 429, кривой JSON)
+// тихо падают на детерминированные *Fallback ниже — так фичи всегда что-то
+// показывают. Контракт функций фиксирован: компоненты не трогаем.
 
+import { geminiGenerate } from "./ai-server";
 import { MAHALLAS, daysAgo, formatWorkExperience, type Person, type Program } from "./data";
 import { computePriorityLevel, dataAgeDays, daysInReviewColumn } from "./person-compute";
 import type { Role } from "./permissions";
@@ -47,8 +50,6 @@ export type AnalyticsStats = {
   programRows: { program: string; sent: number; ok: number; rate: number }[];
   territory?: string;
 };
-
-const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function norm(text: string) {
   return text.toLowerCase().replace(/\s+/g, " ").trim();
@@ -142,9 +143,7 @@ function fallbackParse(text: string, person: Person): ParsedNote {
   };
 }
 
-export async function parseFieldNote(text: string, person: Person): Promise<ParsedNote> {
-  await delay(1400);
-
+function parseFieldNoteFallback(text: string, person: Person): ParsedNote {
   let best: (typeof PRESET_NOTES)[number] | null = null;
   let bestScore = 0;
 
@@ -161,9 +160,7 @@ export async function parseFieldNote(text: string, person: Person): Promise<Pars
   return fallbackParse(text, person);
 }
 
-export async function explainRecommendation(person: Person, program: Program): Promise<string> {
-  await delay(900);
-
+function explainRecommendationFallback(person: Person, program: Program): string {
   const parts: string[] = [];
   parts.push(`${person.age} лет, образование — ${person.educationLevel}`);
 
@@ -207,12 +204,10 @@ export async function explainRecommendation(person: Person, program: Program): P
   }
 }
 
-export async function generateDashboardSummary(
+function generateDashboardSummaryFallback(
   stats: DashboardStats,
   role: Role,
-): Promise<{ headline: string; points: string[] }> {
-  await delay(1600);
-
+): { headline: string; points: string[] } {
   if (role === "mahalla_officer" || role === "youth_rep") {
     const territory = stats.mahalla ? `махалли «${stats.mahalla}»` : "закреплённой территории";
     return {
@@ -285,12 +280,10 @@ const PERIOD_LABELS: Record<string, string> = {
   half: "текущее полугодие",
 };
 
-export async function generateOfficialReport(
+function generateOfficialReportFallback(
   stats: AnalyticsStats,
   period: string,
-): Promise<{ title: string; sections: { heading: string; body: string }[] }> {
-  await delay(2200);
-
+): { title: string; sections: { heading: string; body: string }[] } {
   const periodLabel = PERIOD_LABELS[period] ?? period;
   const territory = stats.territory ?? "Мирзо-Улугбекского района";
   const pct = (n: number) => (stats.total ? Math.round((n / stats.total) * 100) : 0);
@@ -469,4 +462,203 @@ export function buildAnalyticsStats(people: Person[], territory?: string): Analy
     programRows,
     ...(territory ? { territory } : {}),
   };
+}
+
+// ─── Реальные вызовы LLM (Gemini) ───────────────────────────────────────────
+
+// Ответ модели в JSON-режиме приходит чистым, но на всякий случай снимаем
+// возможные ```-ограждения перед JSON.parse.
+function parseJson<T>(raw: string): T {
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "");
+  return JSON.parse(cleaned) as T;
+}
+
+const NOTE_STATUSES = [
+  "Безработный",
+  "Неофициальная занятость",
+  "Уход за ребёнком",
+  "Трудовая миграция",
+  "Учится",
+  "Предприниматель",
+];
+const CONFIDENCE_VALUES: ParsedNote["confidence"][] = ["высокая", "средняя", "низкая"];
+
+const asStringOrNull = (v: unknown): string | null =>
+  typeof v === "string" && v.trim() ? v.trim() : null;
+
+export async function parseFieldNote(text: string, person: Person): Promise<ParsedNote> {
+  const prompt = `Ты — ассистент сотрудника хокимията по учёту занятости молодёжи. Разбери свободную заметку с подворного обхода в структуру.
+
+Текущие данные человека:
+- статус в системе: ${person.status}
+- возраст: ${person.age}, образование: ${person.educationLevel}
+- махалля: ${person.mahalla}
+
+Заметка инспектора:
+"""${text}"""
+
+Верни СТРОГО JSON без пояснений:
+{
+  "status": один из ${JSON.stringify(NOTE_STATUSES)} или "" если статус не ясен,
+  "activityDetail": короткое описание деятельности или null,
+  "need": выявленная потребность (например "Профессиональное обучение") или null,
+  "direction": желаемое направление (например "Сварочное дело", "Цифровые навыки") или null,
+  "flags": массив коротких пометок-рисков на русском (например "занятость без оформления"), возможно пустой,
+  "confidence": "высокая" | "средняя" | "низкая"
+}
+Опирайся только на текст заметки. Если данных мало — confidence "низкая".`;
+
+  try {
+    const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.1 } });
+    const j = parseJson<{
+      status?: unknown;
+      activityDetail?: unknown;
+      need?: unknown;
+      direction?: unknown;
+      flags?: unknown;
+      confidence?: unknown;
+    }>(raw);
+
+    const status =
+      typeof j.status === "string" && NOTE_STATUSES.includes(j.status)
+        ? j.status
+        : person.status;
+    const confidence = CONFIDENCE_VALUES.includes(j.confidence as ParsedNote["confidence"])
+      ? (j.confidence as ParsedNote["confidence"])
+      : "средняя";
+    const flags = Array.isArray(j.flags)
+      ? j.flags.filter((f): f is string => typeof f === "string" && f.trim().length > 0)
+      : [];
+
+    return {
+      status,
+      activityDetail: asStringOrNull(j.activityDetail),
+      need: asStringOrNull(j.need),
+      direction: asStringOrNull(j.direction),
+      flags: flags.length ? flags : ["требуется уточнение"],
+      confidence,
+    };
+  } catch (error) {
+    console.warn("[ai] parseFieldNote → fallback:", error);
+    return parseFieldNoteFallback(text, person);
+  }
+}
+
+export async function explainRecommendation(person: Person, program: Program): Promise<string> {
+  const experience =
+    person.workExperienceMonths > 0
+      ? formatWorkExperience(person.workExperienceMonths)
+      : "отсутствует";
+  const prompt = `Ты — специалист службы занятости. Объясни в 1–2 предложениях на русском, почему молодому человеку подходит программа «${program}». Официальный деловой стиль, без воды и без markdown.
+
+Профиль:
+- возраст ${person.age}, образование ${person.educationLevel}
+- опыт работы: ${experience}
+- навыки: ${person.skills.length ? person.skills.join(", ") : "—"}
+- ${person.familyInTemirDaftar ? "семья в Темир дафтар; " : ""}${person.isBreadwinner ? "единственный кормилец; " : ""}состав семьи ${person.householdSize} чел.
+- желаемое направление: ${person.desiredDirection}
+
+Верни только текст объяснения, одним абзацем.`;
+
+  try {
+    const raw = await geminiGenerate({ data: { prompt, temperature: 0.4 } });
+    return raw.trim().replace(/^["«]|["»]$/g, "").trim();
+  } catch (error) {
+    console.warn("[ai] explainRecommendation → fallback:", error);
+    return explainRecommendationFallback(person, program);
+  }
+}
+
+const ROLE_LABELS: Record<Role, string> = {
+  mahalla_officer: "сотрудник махалли",
+  youth_rep: "молодёжный лидер махалли",
+  district_officer: "сотрудник районного хокимията",
+  employment_specialist: "специалист службы занятости",
+  admin: "администратор системы",
+};
+
+export async function generateDashboardSummary(
+  stats: DashboardStats,
+  role: Role,
+): Promise<{ headline: string; points: string[] }> {
+  const compact = {
+    территория: stats.mahalla ?? "весь район",
+    всего: stats.total,
+    neet: stats.neet,
+    устарело_90д: stats.stale,
+    устарело_60д: stats.stale60,
+    высокий_приоритет: stats.highPriority,
+    на_проверке_свыше_30д: stats.uncheckedOver30,
+    динамика_neet_за_месяц: stats.neetTrendDelta,
+    направлено_в_программы: stats.routed,
+    ждут_исхода_свыше_30д: stats.awaitingOutcomeOver30,
+    лучшая_программа: stats.programBest,
+    худшая_программа: stats.programWorst,
+    всего_в_системе: stats.systemTotal,
+    топ_махалли_по_neet: stats.mahallaNeetShare.slice(0, 3),
+    топ_махалли_по_устаревшим: stats.mahallaStaleShare.slice(0, 3),
+  };
+  const prompt = `Ты — аналитик хокимията. По готовым цифрам сделай краткую сводку дашборда для роли «${ROLE_LABELS[role]}». Не придумывай числа — используй только предоставленные.
+
+Данные (JSON):
+${JSON.stringify(compact)}
+
+Верни СТРОГО JSON:
+{ "headline": "одно ёмкое предложение с ключевой цифрой", "points": ["тезис 1", "тезис 2", "тезис 3"] }
+Пиши по-русски, официально. Каждый тезис — с конкретной цифрой из данных. Ровно 3 тезиса.`;
+
+  try {
+    const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.4 } });
+    const j = parseJson<{ headline?: unknown; points?: unknown }>(raw);
+    const headline = typeof j.headline === "string" && j.headline.trim() ? j.headline.trim() : "";
+    const points = Array.isArray(j.points)
+      ? j.points.filter((p): p is string => typeof p === "string" && p.trim().length > 0).slice(0, 3)
+      : [];
+    if (!headline || points.length === 0) throw new Error("неполный ответ сводки");
+    return { headline, points };
+  } catch (error) {
+    console.warn("[ai] generateDashboardSummary → fallback:", error);
+    return generateDashboardSummaryFallback(stats, role);
+  }
+}
+
+export async function generateOfficialReport(
+  stats: AnalyticsStats,
+  period: string,
+): Promise<{ title: string; sections: { heading: string; body: string }[] }> {
+  const periodLabel = PERIOD_LABELS[period] ?? period;
+  const territory = stats.territory ?? "Мирзо-Улугбекского района";
+  const prompt = `Ты — сотрудник хокимията, готовишь официальную справку о состоянии занятости молодёжи за ${periodLabel} по территории «${territory}». Используй ТОЛЬКО приведённые цифры, не выдумывай новых.
+
+Данные (JSON):
+${JSON.stringify(stats)}
+
+Верни СТРОГО JSON:
+{ "title": "заголовок справки", "sections": [ { "heading": "1. Общие показатели", "body": "..." } ] }
+Сделай ровно 6 разделов: (1) общие показатели; (2) выявление и проверка случаев; (3) направление на меры поддержки; (4) результативность программ; (5) актуальность данных по махаллям; (6) выводы и предложения. Официальный канцелярский стиль, без markdown, каждый body — связный абзац с конкретными цифрами.`;
+
+  try {
+    const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.4 } });
+    const j = parseJson<{ title?: unknown; sections?: unknown }>(raw);
+    const title = typeof j.title === "string" && j.title.trim() ? j.title.trim() : "";
+    const sections = Array.isArray(j.sections)
+      ? j.sections
+          .filter(
+            (s): s is { heading: string; body: string } =>
+              !!s &&
+              typeof (s as { heading?: unknown }).heading === "string" &&
+              typeof (s as { body?: unknown }).body === "string" &&
+              (s as { body: string }).body.trim().length > 0,
+          )
+          .map((s) => ({ heading: s.heading.trim(), body: s.body.trim() }))
+      : [];
+    if (!title || sections.length === 0) throw new Error("неполный ответ справки");
+    return { title, sections };
+  } catch (error) {
+    console.warn("[ai] generateOfficialReport → fallback:", error);
+    return generateOfficialReportFallback(stats, period);
+  }
 }
