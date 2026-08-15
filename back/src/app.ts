@@ -1,6 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerErrorHandler } from "./lib/errors.js";
+import authPlugin from "./plugins/auth.js";
+import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
+import { metaRoutes } from "./routes/meta.js";
 
 // buildApp() собирает приложение без listen() — тесты гоняют его через
 // app.inject(), а index.ts поднимает сеть отдельно.
@@ -10,8 +13,12 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   registerErrorHandler(app);
+  await app.register(authPlugin);
 
+  // /health вне /api и без auth.
   await app.register(healthRoutes);
+  await app.register(authRoutes, { prefix: "/api" });
+  await app.register(metaRoutes, { prefix: "/api" });
 
   return app;
 }
