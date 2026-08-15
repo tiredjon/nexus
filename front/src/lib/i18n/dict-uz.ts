@@ -189,6 +189,18 @@ export const dictUz: Record<DictKey, string> = {
   "ai.badge": "AI",
   "ai.error": "Shakllantirish amalga oshmadi. Qayta urinib ko'ring",
 
+  // Opportunities (bo'sh ish o'rinlari va kurslar tanlovi)
+  "opportunities.title": "Mos ish o'rinlari va kurslar",
+  "opportunities.analyzing": "Variantlar tanlanmoqda",
+  "opportunities.jobsTitle": "Profil bo'yicha ish o'rinlari",
+  "opportunities.coursesTitle": "Rivojlanish uchun kurslar",
+  "opportunities.emptyJobs": "Hozircha joriy ko'nikmalarga mos ish yo'q — kursdan boshlash tavsiya etiladi.",
+  "opportunities.emptyCourses": "Mos kurslar topilmadi.",
+  "opportunities.free": "bepul",
+  "opportunities.paid": "pullik",
+  "opportunities.disclaimer":
+    "Tanlov dasturlar katalogidan AI tomonidan shakllantirildi. Yo'naltirish to'g'risidagi qarorni vakolatli xodim qabul qiladi.",
+
   "registry.title": "Yoshlar reyestri",
   "registry.found": "Topilgan yozuvlar: {count}",
   "registry.addRecord": "Yozuv kiritish",

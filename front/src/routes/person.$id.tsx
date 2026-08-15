@@ -18,6 +18,7 @@ import { useLanguage, useLabels } from "@/lib/i18n";
 import { EmptyState, NeetBadge, StatusBadge } from "@/components/common";
 import { EditPersonDialog, type AiPrefill } from "@/components/EditPersonDialog";
 import { FieldNoteSection } from "@/components/FieldNoteSection";
+import { OpportunityMatch } from "@/components/OpportunityMatch";
 import { RecommendationReason } from "@/components/RecommendationReason";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -382,6 +383,8 @@ function PersonPage() {
           )}
           <p className="mt-4 text-xs text-muted-foreground">{t("person.recRules")}</p>
         </section>
+
+        <OpportunityMatch person={person} />
       </div>
 
       <EditPersonDialog

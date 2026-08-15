@@ -13,9 +13,15 @@ export type GeminiInput = {
   json?: boolean;
   /** 0 — детерминированно (разбор заметки), выше — «живее» (справка/сводка). */
   temperature?: number;
+  /** Схема ответа (подмножество OpenAPI). С ней модель гарантирует валидную
+   *  структуру JSON — так исключаются битые/обрезанные ответы. */
+  schema?: unknown;
 };
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-3.5-flash";
+// Если ключ не имеет доступа к основной модели (404 «no longer available to new
+// users») — прозрачно пробуем универсальный rolling-алиас, доступный всем.
+const FALLBACK_MODEL = "gemini-flash-latest";
 const REQUEST_TIMEOUT_MS = 25_000;
 
 const endpoint = (model: string, key: string) =>
@@ -70,6 +76,7 @@ function getModel(): string {
 
 async function callGemini(
   key: string,
+  model: string,
   input: GeminiInput,
   signal: AbortSignal,
 ): Promise<string> {
@@ -77,11 +84,18 @@ async function callGemini(
     contents: [{ parts: [{ text: input.prompt }] }],
     generationConfig: {
       temperature: input.temperature ?? 0.4,
+      // Наши задачи — извлечение/форматирование, «мышление» не нужно. Оно же
+      // съедало 1300–1600 токенов и на длинном промпте обрезало JSON (ответ не
+      // закрывался → ошибка парсинга). Отключение чинит JSON, ускоряет и
+      // экономит квоту. maxOutputTokens — запас под самый длинный вывод (справка).
+      maxOutputTokens: 4096,
+      thinkingConfig: { thinkingBudget: 0 },
       ...(input.json ? { responseMimeType: "application/json" } : {}),
+      ...(input.schema ? { responseSchema: input.schema } : {}),
     },
   };
 
-  const res = await fetch(endpoint(getModel(), key), {
+  const res = await fetch(endpoint(model, key), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -114,6 +128,10 @@ export const geminiGenerate = createServerFn({ method: "POST" })
     const start = cursor;
     cursor = (cursor + 1) % keys.length;
 
+    // На каждом ключе пробуем основную модель, а при 404 (ключ без доступа к
+    // ней) — запасную. Дедуп на случай, если GEMINI_MODEL уже равен запасной.
+    const models = [...new Set([getModel(), FALLBACK_MODEL])];
+
     let lastError: unknown;
     // Несколько раундов по всем ключам с нарастающей паузой. Первый круг — без
     // пауз (обычный failover). Если все ключи ответили 429/5xx/сетью, значит
@@ -128,7 +146,18 @@ export const geminiGenerate = createServerFn({ method: "POST" })
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
         try {
-          return await callGemini(key, data, controller.signal);
+          for (const model of models) {
+            try {
+              return await callGemini(key, model, data, controller.signal);
+            } catch (error) {
+              lastError = error;
+              // 400 — кривой запрос, другая модель не спасёт: сразу в мок.
+              if ((error as { status?: number }).status === 400) throw error;
+              // Иначе (404 — нет доступа к модели, 429 — квота модели исчерпана)
+              // пробуем следующую модель на этом же ключе: у моделей квоты
+              // раздельные, поэтому flash-latest часто отвечает, когда 3.5 в 429.
+            }
+          }
         } catch (error) {
           lastError = error;
           const status = (error as { status?: number }).status;
