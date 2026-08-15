@@ -466,6 +466,12 @@ export function buildAnalyticsStats(people: Person[], territory?: string): Analy
 
 // ─── Реальные вызовы LLM (Gemini) ───────────────────────────────────────────
 
+// Кэш успешных ответов Gemini на время сессии (в памяти модуля). Гасит повторные
+// вызовы при ре-рендерах и повторных заходах на страницу: это и экономит квоту
+// (меньше шансов словить 429), и при возврате показывает именно живой ответ, а не
+// мгновенный мок. Мок и ошибки НЕ кэшируем — следующий заход снова пробует Gemini.
+const aiCache = new Map<string, unknown>();
+
 // Ответ модели в JSON-режиме приходит чистым, но на всякий случай снимаем
 // возможные ```-ограждения перед JSON.parse.
 function parseJson<T>(raw: string): T {
@@ -511,6 +517,10 @@ export async function parseFieldNote(text: string, person: Person): Promise<Pars
 }
 Опирайся только на текст заметки. Если данных мало — confidence "низкая".`;
 
+  const cacheKey = `note:${person.id}:${text}`;
+  const cached = aiCache.get(cacheKey);
+  if (cached !== undefined) return cached as ParsedNote;
+
   try {
     const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.1 } });
     const j = parseJson<{
@@ -533,7 +543,7 @@ export async function parseFieldNote(text: string, person: Person): Promise<Pars
       ? j.flags.filter((f): f is string => typeof f === "string" && f.trim().length > 0)
       : [];
 
-    return {
+    const result: ParsedNote = {
       status,
       activityDetail: asStringOrNull(j.activityDetail),
       need: asStringOrNull(j.need),
@@ -541,6 +551,8 @@ export async function parseFieldNote(text: string, person: Person): Promise<Pars
       flags: flags.length ? flags : ["требуется уточнение"],
       confidence,
     };
+    aiCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     console.warn("[ai] parseFieldNote → fallback:", error);
     return parseFieldNoteFallback(text, person);
@@ -563,9 +575,15 @@ export async function explainRecommendation(person: Person, program: Program): P
 
 Верни только текст объяснения, одним абзацем.`;
 
+  const cacheKey = `rec:${person.id}:${program}:${person.lastUpdate}`;
+  const cached = aiCache.get(cacheKey);
+  if (cached !== undefined) return cached as string;
+
   try {
     const raw = await geminiGenerate({ data: { prompt, temperature: 0.4 } });
-    return raw.trim().replace(/^["«]|["»]$/g, "").trim();
+    const result = raw.trim().replace(/^["«]|["»]$/g, "").trim();
+    aiCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     console.warn("[ai] explainRecommendation → fallback:", error);
     return explainRecommendationFallback(person, program);
@@ -610,6 +628,10 @@ ${JSON.stringify(compact)}
 { "headline": "одно ёмкое предложение с ключевой цифрой", "points": ["тезис 1", "тезис 2", "тезис 3"] }
 Пиши по-русски, официально. Каждый тезис — с конкретной цифрой из данных. Ровно 3 тезиса.`;
 
+  const cacheKey = `dash:${role}:${stats.mahalla ?? ""}:${stats.total}:${stats.neet}:${stats.stale}:${stats.routed}:${stats.neetTrendDelta}`;
+  const cached = aiCache.get(cacheKey);
+  if (cached !== undefined) return cached as { headline: string; points: string[] };
+
   try {
     const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.4 } });
     const j = parseJson<{ headline?: unknown; points?: unknown }>(raw);
@@ -618,7 +640,9 @@ ${JSON.stringify(compact)}
       ? j.points.filter((p): p is string => typeof p === "string" && p.trim().length > 0).slice(0, 3)
       : [];
     if (!headline || points.length === 0) throw new Error("неполный ответ сводки");
-    return { headline, points };
+    const result = { headline, points };
+    aiCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     console.warn("[ai] generateDashboardSummary → fallback:", error);
     return generateDashboardSummaryFallback(stats, role);
@@ -640,6 +664,10 @@ ${JSON.stringify(stats)}
 { "title": "заголовок справки", "sections": [ { "heading": "1. Общие показатели", "body": "..." } ] }
 Сделай ровно 6 разделов: (1) общие показатели; (2) выявление и проверка случаев; (3) направление на меры поддержки; (4) результативность программ; (5) актуальность данных по махаллям; (6) выводы и предложения. Официальный канцелярский стиль, без markdown, каждый body — связный абзац с конкретными цифрами.`;
 
+  const cacheKey = `report:${period}:${territory}:${stats.total}:${stats.neet}:${stats.routed}:${stats.stale}`;
+  const cached = aiCache.get(cacheKey);
+  if (cached !== undefined) return cached as { title: string; sections: { heading: string; body: string }[] };
+
   try {
     const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.4 } });
     const j = parseJson<{ title?: unknown; sections?: unknown }>(raw);
@@ -656,7 +684,9 @@ ${JSON.stringify(stats)}
           .map((s) => ({ heading: s.heading.trim(), body: s.body.trim() }))
       : [];
     if (!title || sections.length === 0) throw new Error("неполный ответ справки");
-    return { title, sections };
+    const result = { title, sections };
+    aiCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     console.warn("[ai] generateOfficialReport → fallback:", error);
     return generateOfficialReportFallback(stats, period);

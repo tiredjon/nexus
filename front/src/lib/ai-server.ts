@@ -55,6 +55,8 @@ async function getKeys(): Promise<string[]> {
   return cachedKeys;
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 function splitKeys(value: string): string[] {
   return value
     .split(",")
@@ -113,19 +115,30 @@ export const geminiGenerate = createServerFn({ method: "POST" })
     cursor = (cursor + 1) % keys.length;
 
     let lastError: unknown;
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[(start + i) % keys.length];
-      if (!key) continue;
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-      try {
-        return await callGemini(key, data, controller.signal);
-      } catch (error) {
-        lastError = error;
-        // 429 (лимит), 5xx, 401/403 (плохой ключ), сетевые/таймаут — пробуем
-        // следующий ключ. Смысла различать нет: любой из них лечится failover.
-      } finally {
-        clearTimeout(timer);
+    // Несколько раундов по всем ключам с нарастающей паузой. Первый круг — без
+    // пауз (обычный failover). Если все ключи ответили 429/5xx/сетью, значит
+    // словили всплеск лимита — ждём и пробуем ещё, чтобы не сваливаться в мок с
+    // первого же 429. Пауза даёт окну rate-limit (per-minute) чуть остыть.
+    const backoffsMs = [0, 700, 1500];
+    for (let round = 0; round < backoffsMs.length; round++) {
+      if (backoffsMs[round]) await sleep(backoffsMs[round]!);
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[(start + round + i) % keys.length];
+        if (!key) continue;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        try {
+          return await callGemini(key, data, controller.signal);
+        } catch (error) {
+          lastError = error;
+          const status = (error as { status?: number }).status;
+          // 400 — кривой запрос/промпт, ретраи не помогут: выходим на мок сразу.
+          if (status === 400) throw error;
+          // 429 / 5xx / 401 / 403 / сеть / таймаут — пробуем следующий ключ,
+          // а после полного круга — следующий раунд с паузой.
+        } finally {
+          clearTimeout(timer);
+        }
       }
     }
     throw lastError ?? new Error("gemini: все ключи недоступны");
