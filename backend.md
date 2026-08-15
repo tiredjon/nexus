@@ -713,7 +713,35 @@ jobs:
     применение WHERE (own/routed/all) будет в S3/S5.
   - Локально зелёно: `typecheck` → `migrate` → `seed --count 250/5000(+light)` →
     `test` (26/26) → boot + smoke (5 ролей, 400 на чужую махаллю/старую роль).
-- [ ] **S3** — реестр (`GET /api/people`, `/:id`). PR: —
+- [x] **S3** — реестр (`GET /api/people`, `/:id`). PR: —
+  - `src/lib/serialize.ts` — `toPersonListItem()`/`toPerson()` на полной модели
+    Person (~44 поля, после sync-front-model): строка типизируется как
+    `typeof people.$inferSelect & {mahallaName}`, `mahalla` отдаётся именем.
+  - `src/routes/people.ts` (пп.6–7). Список: zod-валидация query (невалидный
+    `sort`/`pageSize`/`ageMin>ageMax` → 400), динамический WHERE через
+    `and(...conds)`, `total` отдельным `count(*)::int` с тем же WHERE,
+    whitelist-мапа `SORT_EXPR` (текстовые поля — `COLLATE "ru-RU-x-icu"`),
+    `LIMIT/OFFSET`. Карточка: JOIN на махаллю + история `ORDER BY date, id`,
+    `note`/`source` NULL → отсутствуют в ответе.
+  - **Скоуп по 5 ролям** (`resolveScope().kind`, не по имени роли):
+    `own_mahalla` → `WHERE mahalla_id = свой`, чужой `?mahalla=` → 403, роль без
+    махалли → 403; `routed_only` → `program IS NOT NULL` (и в списке, и в
+    карточке — чужой человек даёт 403); `all_mahallas`/`all_data` → без
+    ограничений, `?mahalla=` сужает, неизвестная махалля → 400.
+  - Тесты: `test/people.test.ts` (39) + `seedFixture()` в helpers —
+    детерминированные 10 человек с фабрикой дефолтов `person()`. Покрыто: каждый
+    фильтр, комбинации, границы (`ageMin=ageMax`, пустой `query`, страница за
+    пределами), все `sort × order`, непересечение страниц, все 5 ролей, история,
+    401/403/404/400. Итого по репозиторию 65/65 зелёных.
+  - **Отклонения:** (1) в `ORDER BY` добавлен вторичный ключ `people.id` — без
+    него страницы при равных `lastUpdate` перекрываются (проверено: сбор всех
+    250 записей через `pageSize=7` даёт 250 уникальных id). (2) Неизвестная
+    махалля в `?mahalla=` даёт 400, а не пустой список — спека этот случай не
+    описывала.
+  - Проверено на живом сидере (250 человек): скоупы совпали с прямым SQL
+    (district 250 / Дархан 21 / routed 40 / admin 250), `stale` — 64 = SQL,
+    `EXPLAIN` подтверждает работу `people_full_name_trgm_idx` на ILIKE и
+    `people_mahalla_status_idx` на скоуп-фильтре.
 - [ ] **S4** — мутации (пп.8–11). PR: —
 - [ ] **S5** — агрегаты (`/api/stats/*`). PR: —
 - [ ] **S6** — демо больших данных + полировка. PR: —

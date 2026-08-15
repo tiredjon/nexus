@@ -4,6 +4,7 @@ import authPlugin from "./plugins/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
 import { metaRoutes } from "./routes/meta.js";
+import { peopleRoutes } from "./routes/people.js";
 
 // buildApp() собирает приложение без listen() — тесты гоняют его через
 // app.inject(), а index.ts поднимает сеть отдельно.
@@ -19,6 +20,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: "/api" });
   await app.register(metaRoutes, { prefix: "/api" });
+  await app.register(peopleRoutes, { prefix: "/api" });
 
   return app;
 }

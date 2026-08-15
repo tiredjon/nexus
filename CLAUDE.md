@@ -72,7 +72,20 @@ dev-Postgres `5438` (не пересекается с фронтом на `8080`
 `youth_rep`, `district_officer`, `employment_specialist`, `admin`);
 `resolveScope` (`src/lib/scope.ts`) маппит роль в scope
 `own_mahalla/all_mahallas/routed_only/all_data`. Старые роли `district/mahalla`
-логином не принимаются. Запуск из `back/`:
+логином не принимаются.
+
+Готово (S3): реестр — `GET /api/people` (п.6) с фильтрами, поиском, пагинацией и
+сортировкой русской коллацией; `GET /api/people/:id` (п.7) с полным профилем и
+историей. Вся фильтрация в SQL: динамический WHERE через drizzle `and()`, `total`
+отдельным `count(*)`, whitelist-мапа сортировок (значение из query никогда не
+попадает в `ORDER BY`), вторичный ключ по `id` — иначе страницы «плывут» при
+равных значениях. Скоуп берётся из `resolveScope().kind`: `own_mahalla` → только
+своя махалля (чужой `?mahalla=` → 403), `routed_only` → только `program IS NOT
+NULL`, `all_mahallas`/`all_data` → без ограничений. Сериализаторы `toPerson()`/
+`toPersonListItem()` (`src/lib/serialize.ts`) отдают полную модель Person с
+`mahalla` именем-строкой.
+
+Запуск из `back/`:
 
 ```bash
 cd back && npm install
