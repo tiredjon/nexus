@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { memo, useCallback, useEffect, useState, type ReactNode } from "react";
 import { useStore } from "@/lib/store";
+import { usePrewarmAi } from "@/lib/prewarm";
 import { getRoleConfig, TAB_ROUTES, type TabId } from "@/lib/permissions";
 import { useLanguage, useLabels, LanguageSwitcher, type TranslationKey } from "@/lib/i18n";
 import {
@@ -74,6 +75,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const openMobileMenu = useCallback(() => setMobileOpen(true), []);
   const closeMobileMenu = useCallback(() => setMobileOpen(false), []);
+  usePrewarmAi();
 
   return (
     <SidebarLayoutRoot>

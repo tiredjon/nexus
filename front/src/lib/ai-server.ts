@@ -22,14 +22,10 @@ const DEFAULT_MODEL = "gemini-3.5-flash";
 // Если ключ не имеет доступа к основной модели (404 «no longer available to new
 // users») — прозрачно пробуем универсальный rolling-алиас, доступный всем.
 const FALLBACK_MODEL = "gemini-flash-latest";
-const REQUEST_TIMEOUT_MS = 25_000;
+const REQUEST_TIMEOUT_MS = 12_000;
 
 const endpoint = (model: string, key: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-
-// Курсор round-robin. На одном dev-процессе распределяет нагрузку честно; в
-// serverless это best-effort, но failover ниже всё равно спасает от 429.
-let cursor = 0;
 
 let cachedKeys: string[] | null = null;
 
@@ -124,10 +120,10 @@ export const geminiGenerate = createServerFn({ method: "POST" })
     const keys = await getKeys();
     if (keys.length === 0) throw new Error("GEMINI_API_KEYS не заданы");
 
-    // Точка старта round-robin, дальше на этом запросе перебираем ключи по кругу.
-    const start = cursor;
-    cursor = (cursor + 1) % keys.length;
-
+    // Ключи перебираем строго по порядку: keys[0] — основной (сюда ставим
+    // платный ключ, он держит всю нагрузку), остальные — только failover, если
+    // основной ответил ошибкой/лимитом. Ротации нет: на демо основной ключ
+    // предсказуемо обслуживает каждый запрос.
     // На каждом ключе пробуем основную модель, а при 404 (ключ без доступа к
     // ней) — запасную. Дедуп на случай, если GEMINI_MODEL уже равен запасной.
     const models = [...new Set([getModel(), FALLBACK_MODEL])];
@@ -141,7 +137,7 @@ export const geminiGenerate = createServerFn({ method: "POST" })
     for (let round = 0; round < backoffsMs.length; round++) {
       if (backoffsMs[round]) await sleep(backoffsMs[round]!);
       for (let i = 0; i < keys.length; i++) {
-        const key = keys[(start + round + i) % keys.length];
+        const key = keys[i];
         if (!key) continue;
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
