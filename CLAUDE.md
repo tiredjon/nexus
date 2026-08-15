@@ -46,6 +46,32 @@ npx tsc --noEmit
 `src/lib/lovable-error-reporting.ts`). Вопрос «собирать ветку только из правок
 по карте или коммитить всё» с пользователем не решён.
 
+## Бэкенд (`back/`)
+
+Спека и пошаговые сессии — в `backend.md` (единственный источник правды по API).
+Бэкенд в отдельном каталоге `back/`, фронт в этих сессиях не трогаем. Стек:
+Node 22 + TypeScript (ESM) + Fastify 5 + Drizzle ORM + PostgreSQL 16, тесты —
+vitest через `app.inject()` против реального Postgres. Порты: API `3001`,
+dev-Postgres `5438` (не пересекается с фронтом на `8080`).
+
+Готово (S1): каркас, схема БД (3 таблицы `mahallas`/`people`/`history_events`
+на text+CHECK, миграция `back/drizzle/0000_*.sql` с `pg_trgm` и partial/GIN
+индексами), `GET /health`, сидер v1 (12 махаллей), CI
+`.github/workflows/backend-ci.yml`. Запуск из `back/`:
+
+```bash
+cd back && npm install
+docker compose up -d          # postgres:16-alpine на :5438
+npm run migrate && npm run seed
+npm run dev                   # http://localhost:3001 ; /health → {"status":"ok","db":"ok"}
+npm run typecheck && npm test
+```
+
+Git по бэкенду: ветка `back/s<N>-<slug>` → PR → мерж только после зелёного CI
+(`gh pr checks --watch`, затем `gh pr merge --squash --delete-branch`, без
+`--auto`). Коммить только `back/ .github/ backend.md CLAUDE.md` — в дереве есть
+несвязанные правки фронта, `git add -A` не делать.
+
 ## Карта района (`/map`) — главное
 
 ### Слои по зуму
