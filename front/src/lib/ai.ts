@@ -1,9 +1,9 @@
-// ИИ-фичи фронта. Публичные функции ходят в Gemini через серверную обёртку
-// (geminiGenerate), а при любой ошибке (нет ключей, лимит 429, кривой JSON)
+// ИИ-фичи фронта. Публичные функции ходят в LLM (DeepSeek) через серверную
+// обёртку (aiGenerate), а при любой ошибке (нет ключа, лимит 429, кривой JSON)
 // тихо падают на детерминированные *Fallback ниже — так фичи всегда что-то
 // показывают. Контракт функций фиксирован: компоненты не трогаем.
 
-import { geminiGenerate } from "./ai-server";
+import { aiGenerate } from "./ai-server";
 import {
   COURSE_BY_ID,
   JOB_BY_ID,
@@ -472,16 +472,17 @@ export function buildAnalyticsStats(people: Person[], territory?: string): Analy
   };
 }
 
-// ─── Реальные вызовы LLM (Gemini) ───────────────────────────────────────────
+// ─── Реальные вызовы LLM (DeepSeek) ─────────────────────────────────────────
 
-// Кэш успешных ответов Gemini на время сессии (в памяти модуля). Гасит повторные
+// Кэш успешных ответов LLM на время сессии (в памяти модуля). Гасит повторные
 // вызовы при ре-рендерах и повторных заходах на страницу: это и экономит квоту
 // (меньше шансов словить 429), и при возврате показывает именно живой ответ, а не
-// мгновенный мок. Мок и ошибки НЕ кэшируем — следующий заход снова пробует Gemini.
+// мгновенный мок. Мок и ошибки НЕ кэшируем — следующий заход снова пробует LLM.
 const aiCache = new Map<string, unknown>();
 
-// Схемы ответов (подмножество OpenAPI) — с ними Gemini возвращает строго
-// валидный JSON нужной структуры, без обрывов и лишнего текста.
+// Схемы ответов (подмножество OpenAPI). Структуру ответа мы диктуем прямо в
+// промпте + включаем JSON-режим DeepSeek; сами объекты схем передаём в aiGenerate
+// для совместимости (DeepSeek их игнорирует, но при смене провайдера пригодятся).
 const strArr = { type: "array", items: { type: "string" } };
 const SCHEMA_NOTE = {
   type: "object",
@@ -579,7 +580,7 @@ export async function parseFieldNote(text: string, person: Person): Promise<Pars
   if (cached !== undefined) return cached as ParsedNote;
 
   try {
-    const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.1, schema: SCHEMA_NOTE } });
+    const raw = await aiGenerate({ data: { prompt, json: true, temperature: 0.1, schema: SCHEMA_NOTE } });
     const j = parseJson<{
       status?: unknown;
       activityDetail?: unknown;
@@ -637,7 +638,7 @@ export async function explainRecommendation(person: Person, program: Program): P
   if (cached !== undefined) return cached as string;
 
   try {
-    const raw = await geminiGenerate({ data: { prompt, temperature: 0.4 } });
+    const raw = await aiGenerate({ data: { prompt, temperature: 0.4 } });
     const result = raw.trim().replace(/^["«]|["»]$/g, "").trim();
     aiCache.set(cacheKey, result);
     return result;
@@ -690,7 +691,7 @@ ${JSON.stringify(compact)}
   if (cached !== undefined) return cached as { headline: string; points: string[] };
 
   try {
-    const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.4, schema: SCHEMA_SUMMARY } });
+    const raw = await aiGenerate({ data: { prompt, json: true, temperature: 0.4, schema: SCHEMA_SUMMARY } });
     const j = parseJson<{ headline?: unknown; points?: unknown }>(raw);
     const headline = typeof j.headline === "string" && j.headline.trim() ? j.headline.trim() : "";
     const points = Array.isArray(j.points)
@@ -726,7 +727,7 @@ ${JSON.stringify(stats)}
   if (cached !== undefined) return cached as { title: string; sections: { heading: string; body: string }[] };
 
   try {
-    const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.4, schema: SCHEMA_REPORT } });
+    const raw = await aiGenerate({ data: { prompt, json: true, temperature: 0.4, schema: SCHEMA_REPORT } });
     const j = parseJson<{ title?: unknown; sections?: unknown }>(raw);
     const title = typeof j.title === "string" && j.title.trim() ? j.title.trim() : "";
     const sections = Array.isArray(j.sections)
@@ -760,7 +761,7 @@ export type OpportunityMatch = {
 const lower = (s: string) => s.toLowerCase().trim();
 
 // Правило-фолбэк: берём верх шортлиста и формулируем обоснование по пересечению
-// навыков / новизне навыка. Используется, если Gemini недоступен.
+// навыков / новизне навыка. Используется, если LLM недоступен.
 function recommendOpportunitiesFallback(person: Person): OpportunityMatch {
   const have = new Set(person.skills.map(lower));
 
@@ -811,10 +812,10 @@ ${courseCands.map((c) => `${c.id}: ${c.title}, даёт: ${c.skillsGained.join("
 
 Верни СТРОГО JSON:
 { "jobs": [ { "id": "J-01", "reason": "одна фраза почему подходит" } ], "courses": [ { "id": "C-03", "reason": "одна фраза" } ] }
-До 3 вакансий и до 3 курсов. Если подходящих вакансий нет (мало навыков) — верни пустой jobs и сделай упор на курсы. reason — по-русски, конкретно, со ссылкой на навык или направление человека.`;
+До 3 вакансий и до 3 курсов. Если подходящих вакансий нет (мало навыков) — верни пустой jobs и сделай упор на курсы. reason — по-русски, конкретно, со ссылкой на навык или направление человека. НЕ упоминай в reason коды/идентификаторы позиций (J-01, C-03 и т.п.) — пиши по смыслу.`;
 
   try {
-    const raw = await geminiGenerate({ data: { prompt, json: true, temperature: 0.3, schema: SCHEMA_OPPORTUNITIES } });
+    const raw = await aiGenerate({ data: { prompt, json: true, temperature: 0.3, schema: SCHEMA_OPPORTUNITIES } });
     const j = parseJson<{ jobs?: unknown; courses?: unknown }>(raw);
 
     const pick = <T>(arr: unknown, map: Map<string, T>): { entity: T; reason: string }[] => {
