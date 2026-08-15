@@ -48,11 +48,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-background">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-card transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-card transition-transform lg:sticky lg:top-0 lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex items-center gap-2 px-5 py-5">
+        <div className="flex shrink-0 items-center gap-2 px-5 py-5">
           <div className="flex size-9 items-center justify-center rounded-xl bg-primary">
             <Radar className="size-5 text-primary-foreground" />
           </div>
@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="yr-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-3">
           {navItems.map((item) => (
             <Link
               key={item.to}
@@ -81,7 +81,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="m-3 rounded-xl border border-border bg-muted/40 p-3">
+        <div className="mt-auto shrink-0 p-3">
+          <div className="rounded-xl border border-border bg-muted/40 p-3">
           <div className="text-xs font-medium text-muted-foreground">Текущая роль</div>
           <div className="mt-1 text-sm font-semibold">{config.label}</div>
           {"isSystemRole" in config && config.isSystemRole && (
@@ -93,6 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Button variant="outline" size="sm" className="mt-3 w-full" onClick={signOut}>
             <LogOut className="size-3.5" /> Сменить роль
           </Button>
+          </div>
         </div>
       </aside>
 
