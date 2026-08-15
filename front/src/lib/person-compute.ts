@@ -50,28 +50,38 @@ export function computePriorityLevel(p: Person): PriorityLevel {
   return "Обычный";
 }
 
-export function computePriorityReasons(p: Person): string[] {
-  const reasons: string[] = [];
+export type PriorityReason =
+  | { kind: "inColumn"; status: ReviewStatus; days: number }
+  | { kind: "stale120"; days: number }
+  | { kind: "stale60"; days: number }
+  | { kind: "temirDaftar" }
+  | { kind: "yoshlarAyollar" }
+  | { kind: "breadwinner" }
+  | { kind: "secondaryNoExp" }
+  | { kind: "noSkills" };
+
+export function computePriorityReasons(p: Person): PriorityReason[] {
+  const reasons: PriorityReason[] = [];
   const colDays = daysInReviewColumn(p);
   const ageDays = dataAgeDays(p);
 
   if (colDays > 30) {
-    reasons.push(`В колонке «${p.neetReviewStatus}» более 30 дней (${colDays} дн.)`);
+    reasons.push({ kind: "inColumn", status: p.neetReviewStatus, days: colDays });
   }
   if (ageDays > 120) {
-    reasons.push(`Данные не обновлялись более 120 дней (${ageDays} дн.)`);
+    reasons.push({ kind: "stale120", days: ageDays });
   } else if (ageDays >= 60) {
-    reasons.push(`Данные не обновлялись 60–120 дней (${ageDays} дн.)`);
+    reasons.push({ kind: "stale60", days: ageDays });
   }
-  if (p.familyInTemirDaftar) reasons.push("Семья в Темир дафтар");
+  if (p.familyInTemirDaftar) reasons.push({ kind: "temirDaftar" });
   if (p.inYoshlarDaftari || p.inAyollarDaftari) {
-    reasons.push("Состоит в реестре Ёшлар/Аёллар");
+    reasons.push({ kind: "yoshlarAyollar" });
   }
-  if (p.isBreadwinner) reasons.push("Единственный кормилец");
+  if (p.isBreadwinner) reasons.push({ kind: "breadwinner" });
   if (p.workExperienceMonths === 0 && p.educationLevel === "Среднее") {
-    reasons.push("Среднее образование без опыта работы");
+    reasons.push({ kind: "secondaryNoExp" });
   }
-  if (p.skills.length === 0) reasons.push("Навыки не указаны");
+  if (p.skills.length === 0) reasons.push({ kind: "noSkills" });
 
   return reasons;
 }

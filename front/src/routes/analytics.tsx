@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { FileText } from "lucide-react";
 import {
   Bar,
@@ -13,6 +13,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
+import { useLanguage, useLabels, type TranslationKey } from "@/lib/i18n";
 import { useStore, useRoleConfig } from "@/lib/store";
 import { PROGRAMS, daysAgo, type Person } from "@/lib/data";
 import { EmptyState, PageHeader, YR_CARD } from "@/components/common";
@@ -37,6 +38,22 @@ export const Route = createFileRoute("/analytics")({
 
 type FocusMode = "results" | "losses";
 
+const FUNNEL_STAGE_KEYS = [
+  "analytics.funnel.detected",
+  "analytics.funnel.reviewed",
+  "analytics.funnel.routed",
+  "analytics.funnel.success",
+] as const satisfies readonly TranslationKey[];
+
+const MONTH_KEYS = [
+  "analytics.month.mar",
+  "analytics.month.apr",
+  "analytics.month.may",
+  "analytics.month.jun",
+  "analytics.month.jul",
+  "analytics.month.aug",
+] as const satisfies readonly TranslationKey[];
+
 function buildFunnel(people: Person[]) {
   const detectedList = people.filter((p) => p.neet);
   const checkedList = detectedList.filter((p) => p.neetReviewStatus !== "Ожидает проверки");
@@ -45,23 +62,24 @@ function buildFunnel(people: Person[]) {
     (p) => p.programOutcome === "Трудоустроен" || p.status === "Учится",
   );
 
-  const raw = [
-    { stage: "Выявлен", value: detectedList.length },
-    { stage: "Проверен", value: checkedList.length },
-    { stage: "Направлен на программу", value: routedList.length },
-    { stage: "Трудоустроен / учится", value: resultList.length },
+  const values = [
+    detectedList.length,
+    checkedList.length,
+    routedList.length,
+    resultList.length,
   ];
 
-  const capped = raw.map((step, i) => {
-    if (i === 0) return step;
-    const prev = raw[i - 1]!.value;
-    if (step.value > prev) {
-      return { ...step, value: prev };
-    }
-    return step;
+  const capped = values.map((value, i) => {
+    if (i === 0) return value;
+    const prev = values[i - 1]!;
+    if (value > prev) return prev;
+    return value;
   });
 
-  return capped;
+  return FUNNEL_STAGE_KEYS.map((stageKey, i) => ({
+    stageKey,
+    value: capped[i]!,
+  }));
 }
 
 function withoutResultCount(people: Person[]) {
@@ -77,6 +95,8 @@ function withoutResultCount(people: Person[]) {
 }
 
 function Analytics() {
+  const { t } = useLanguage();
+  const labels = useLabels();
   const { scopedPeople, people } = useStore();
   const roleConfig = useRoleConfig();
   const [focus, setFocus] = useState<FocusMode>("results");
@@ -127,13 +147,16 @@ function Analytics() {
   const succeeded = funnel[3]!.value;
   const withoutResult = withoutResultCount(scopedPeople);
 
-  const months = ["Март", "Апрель", "Май", "Июнь", "Июль", "Август"];
-  const monthly = months.map((m, i) => ({
-    month: m,
-    Направлено: Math.max(3, Math.round(routed / 6 + ((i * 5) % 7) - 2)),
-    Трудоустроено: Math.max(1, Math.round(succeeded / 6 + ((i * 3) % 5) - 1)),
-    "Без результата": Math.max(0, Math.round(withoutResult / 6 + ((i * 2) % 4) - 1)),
-  }));
+  const monthly = useMemo(
+    () =>
+      MONTH_KEYS.map((key, i) => ({
+        month: t(key),
+        routed: Math.max(3, Math.round(routed / 6 + ((i * 5) % 7) - 2)),
+        employed: Math.max(1, Math.round(succeeded / 6 + ((i * 3) % 5) - 1)),
+        noResult: Math.max(0, Math.round(withoutResult / 6 + ((i * 2) % 4) - 1)),
+      })),
+    [t, routed, succeeded, withoutResult],
+  );
 
   const dropoutCheckToRoute = Math.max(0, funnel[1]!.value - funnel[2]!.value);
   const worstProgram = programLossRows.find((r) => r.sent > 0);
@@ -148,41 +171,58 @@ function Analytics() {
     (p) => p.neet && p.neetReviewStatus === "Ожидает проверки",
   ).length;
 
-  const lossInsights = [
-    {
-      text: `Наибольший отсев между проверкой и направлением: ${dropoutCheckToRoute} человек`,
-      to: "/review" as const,
-    },
-    worstProgram
-      ? {
-          text: `Программа с худшим результатом: ${worstProgram.program}, ${worstProgram.lossRate}% потерь`,
+  const lossInsights = useMemo(
+    () =>
+      [
+        {
+          id: "dropout",
+          text: t("analytics.insight.dropoutCheckToRoute", { count: dropoutCheckToRoute }),
+          to: "/review" as const,
+        },
+        worstProgram
+          ? {
+              id: "worst",
+              text: t("analytics.insight.worstProgram", {
+                program: labels.program(worstProgram.program),
+                rate: worstProgram.lossRate,
+              }),
+              to: "/programs" as const,
+              search: { program: worstProgram.program },
+            }
+          : null,
+        {
+          id: "stale",
+          text: t("analytics.insight.staleAwaiting", { count: staleAwaiting }),
           to: "/programs" as const,
-          search: { program: worstProgram.program },
-        }
-      : null,
-    {
-      text: `Дольше 60 дней без исхода: ${staleAwaiting} человек`,
-      to: "/programs" as const,
-      search: { outcome: "Ожидает" },
-    },
-    {
-      text: `Сигналы, не дошедшие до проверки: ${pendingReview}`,
-      to: "/review" as const,
-    },
-  ].filter(Boolean) as {
-    text: string;
-    to: "/programs" | "/review";
-    search?: { program?: string; outcome?: string };
-  }[];
+          search: { outcome: "Ожидает" },
+        },
+        {
+          id: "pending",
+          text: t("analytics.insight.pendingReview", { count: pendingReview }),
+          to: "/review" as const,
+        },
+      ].filter(Boolean) as {
+        id: string;
+        text: string;
+        to: "/programs" | "/review";
+        search?: { program?: string; outcome?: string };
+      }[],
+    [
+      t,
+      labels,
+      dropoutCheckToRoute,
+      worstProgram,
+      staleAwaiting,
+      pendingReview,
+    ],
+  );
 
   return (
     <div>
       <PageHeader
-        title="Аналитика"
+        title={t("analytics.title")}
         subtitle={
-          lossesMode
-            ? "Где система теряет людей — точки отсева и незавершённые случаи"
-            : "Эффективность сопровождения молодёжи и программ поддержки"
+          lossesMode ? t("analytics.subtitle.losses") : t("analytics.subtitle.results")
         }
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -197,7 +237,7 @@ function Analytics() {
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              Результаты
+              {t("analytics.results")}
             </button>
             <button
               type="button"
@@ -209,12 +249,12 @@ function Analytics() {
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              Потери
+              {t("analytics.losses")}
             </button>
           </div>
           {roleConfig?.can.generateReport && (
             <Button variant="outline" size="sm" onClick={() => setReportOpen(true)}>
-              <FileText className="size-4" /> Сформировать справку
+              <FileText className="size-4" /> {t("analytics.generateReport")}
             </Button>
           )}
         </div>
@@ -224,11 +264,11 @@ function Analytics() {
 
       <section className={`${YR_CARD} p-5`}>
         <h2 className="text-base font-medium">
-          {lossesMode ? "Воронка сопровождения — точки потерь" : "Воронка сопровождения"}
+          {lossesMode ? t("analytics.funnel.titleLosses") : t("analytics.funnel.title")}
         </h2>
         {funnelEmpty ? (
           <div className="mt-5">
-            <EmptyState text="Недостаточно данных для воронки в текущем срезе." />
+            <EmptyState text={t("analytics.funnel.empty")} />
           </div>
         ) : (
           <div className="mt-5 space-y-3">
@@ -238,13 +278,15 @@ function Analytics() {
               const dropPct = i > 0 && prev > 0 ? Math.round((drop / prev) * 100) : 0;
 
               return (
-                <div key={f.stage}>
+                <div key={f.stageKey}>
                   <div className="mb-1 flex justify-between text-sm">
-                    <span className="font-medium">{f.stage}</span>
+                    <span className="font-medium">{t(f.stageKey)}</span>
                     <span className="text-muted-foreground">
                       {f.value}
                       {i > 0 && prev > 0
-                        ? ` · ${Math.round((f.value / prev) * 100)}% от пред. шага`
+                        ? ` ${t("analytics.funnel.stepPct", {
+                            pct: Math.round((f.value / prev) * 100),
+                          })}`
                         : ""}
                     </span>
                   </div>
@@ -268,7 +310,7 @@ function Analytics() {
                   </div>
                   {lossesMode && i > 0 && drop > 0 && (
                     <p className="mt-1 text-xs text-[#b45309]">
-                      Не дошли до этого шага: {drop} ({dropPct}% от предыдущего)
+                      {t("analytics.funnel.dropped", { count: drop, pct: dropPct })}
                     </p>
                   )}
                 </div>
@@ -280,10 +322,10 @@ function Analytics() {
 
       {lossesMode && (
         <section className={`mt-4 ${YR_CARD} p-5`}>
-          <h2 className="mb-4 text-base font-medium">Основные точки потерь</h2>
+          <h2 className="mb-4 text-base font-medium">{t("analytics.losses.title")}</h2>
           <ul className="space-y-2">
             {lossInsights.map((item) => (
-              <li key={item.text}>
+              <li key={item.id}>
                 <Link
                   to={item.to}
                   {...(item.search ? { search: item.search } : {})}
@@ -300,25 +342,27 @@ function Analytics() {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <section className={`${YR_CARD} p-5`}>
           <h2 className="mb-4 text-base font-medium">
-            {lossesMode ? "Эффективность программ — потери" : "Эффективность программ"}
+            {lossesMode ? t("analytics.programs.titleLosses") : t("analytics.programs.title")}
           </h2>
           <div className="overflow-x-auto">
             {lossesMode ? (
               <table className="w-full text-sm">
                 <thead className="border-b border-border text-xs text-muted-foreground">
                   <tr>
-                    <th className="py-2 text-left font-medium">Программа</th>
-                    <th className="py-2 text-right font-medium">Направлено</th>
-                    <th className="py-2 text-right font-medium">Не явились</th>
-                    <th className="py-2 text-right font-medium">Отказались</th>
-                    <th className="py-2 text-right font-medium">Не завершили</th>
-                    <th className="py-2 text-right font-medium">Потери %</th>
+                    <th className="py-2 text-left font-medium">{t("analytics.programs.col")}</th>
+                    <th className="py-2 text-right font-medium">{t("analytics.programs.sent")}</th>
+                    <th className="py-2 text-right font-medium">{t("analytics.programs.noShow")}</th>
+                    <th className="py-2 text-right font-medium">{t("analytics.programs.refused")}</th>
+                    <th className="py-2 text-right font-medium">
+                      {t("analytics.programs.incomplete")}
+                    </th>
+                    <th className="py-2 text-right font-medium">{t("analytics.programs.lossPct")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {programLossRows.map((r) => (
                     <tr key={r.program} className="border-b border-border/60 last:border-0">
-                      <td className="py-3">{r.program}</td>
+                      <td className="py-3">{labels.program(r.program)}</td>
                       <td className="py-3 text-right text-muted-foreground">{r.sent}</td>
                       <td className="py-3 text-right text-muted-foreground">{r.noShow}</td>
                       <td className="py-3 text-right text-muted-foreground">{r.refused}</td>
@@ -339,16 +383,18 @@ function Analytics() {
               <table className="w-full text-sm">
                 <thead className="border-b border-border text-xs text-muted-foreground">
                   <tr>
-                    <th className="py-2 text-left font-medium">Программа</th>
-                    <th className="py-2 text-right font-medium">Направлено</th>
-                    <th className="py-2 text-right font-medium">Успешные исходы</th>
-                    <th className="py-2 text-right font-medium">%</th>
+                    <th className="py-2 text-left font-medium">{t("analytics.programs.col")}</th>
+                    <th className="py-2 text-right font-medium">{t("analytics.programs.sent")}</th>
+                    <th className="py-2 text-right font-medium">
+                      {t("analytics.programs.okOutcomes")}
+                    </th>
+                    <th className="py-2 text-right font-medium">{t("analytics.programs.ratePct")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {programRows.map((r) => (
                     <tr key={r.program} className="border-b border-border/60 last:border-0">
-                      <td className="py-3">{r.program}</td>
+                      <td className="py-3">{labels.program(r.program)}</td>
                       <td className="py-3 text-right text-muted-foreground">{r.sent}</td>
                       <td className="py-3 text-right text-muted-foreground">{r.ok}</td>
                       <td className="py-3 text-right font-semibold text-success">{r.rate}%</td>
@@ -361,47 +407,82 @@ function Analytics() {
         </section>
 
         <section className={`${YR_CARD} p-5`}>
-          <h2 className="mb-4 text-base font-medium">Помесячная динамика направлений</h2>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={monthly}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="Направлено" fill="#1d4ed8" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Трудоустроено" fill="#059669" radius={[4, 4, 0, 0]} />
-              {lossesMode && (
-                <Bar dataKey="Без результата" fill="#c2743a" radius={[4, 4, 0, 0]} />
-              )}
-            </BarChart>
-          </ResponsiveContainer>
+          <h2 className="mb-4 text-base font-medium">{t("analytics.monthly.title")}</h2>
+          <MonthlyBarChart data={monthly} lossesMode={lossesMode} />
         </section>
       </div>
 
       <section className={`mt-4 ${YR_CARD} p-5`}>
         <h2 className="mb-4 text-base font-medium">
-          {lossesMode ? "Тренд неуспешных исходов" : "Тренд успешных исходов"}
+          {lossesMode ? t("analytics.trend.loss") : t("analytics.trend.success")}
         </h2>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={monthly}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            {lossesMode ? (
-              <Line
-                type="monotone"
-                dataKey="Без результата"
-                stroke="#b45309"
-                strokeWidth={2.5}
-              />
-            ) : (
-              <Line type="monotone" dataKey="Трудоустроено" stroke="#059669" strokeWidth={2.5} />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
+        <OutcomeTrendChart data={monthly} lossesMode={lossesMode} />
       </section>
     </div>
   );
 }
+
+const MonthlyBarChart = memo(function MonthlyBarChart({
+  data,
+  lossesMode,
+}: {
+  data: Record<string, string | number>[];
+  lossesMode: boolean;
+}) {
+  const { t } = useLanguage();
+
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <BarChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} />
+        <Tooltip />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Bar dataKey="routed" name={t("analytics.series.routed")} fill="#1d4ed8" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="employed" name={t("analytics.series.employed")} fill="#059669" radius={[4, 4, 0, 0]} />
+        {lossesMode && (
+          <Bar dataKey="noResult" name={t("analytics.series.noResult")} fill="#c2743a" radius={[4, 4, 0, 0]} />
+        )}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+});
+
+const OutcomeTrendChart = memo(function OutcomeTrendChart({
+  data,
+  lossesMode,
+}: {
+  data: Record<string, string | number>[];
+  lossesMode: boolean;
+}) {
+  const { t } = useLanguage();
+
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} />
+        <Tooltip />
+        {lossesMode ? (
+          <Line
+            type="monotone"
+            dataKey="noResult"
+            name={t("analytics.series.noResult")}
+            stroke="#b45309"
+            strokeWidth={2.5}
+          />
+        ) : (
+          <Line
+            type="monotone"
+            dataKey="employed"
+            name={t("analytics.series.employed")}
+            stroke="#059669"
+            strokeWidth={2.5}
+          />
+        )}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+});

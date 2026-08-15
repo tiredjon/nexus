@@ -8,11 +8,12 @@ import {
   LANGUAGE_POOL,
   MARITAL_STATUSES,
   STATUSES,
-  formatDate,
   type Person,
   type UpdateSource,
 } from "@/lib/data";
 import { type PersonEditableFields, useStore } from "@/lib/store";
+import { useLanguage, useLabels } from "@/lib/i18n";
+import type { TranslationKey } from "@/lib/i18n/ru";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,22 +50,22 @@ export type AiPrefill = {
   historyTitle?: string;
 };
 
-const FIELD_LABELS: Record<keyof EditableFormState, string> = {
-  status: "статус занятости",
-  activity: "место работы/учёбы",
-  isFormalEmployment: "официальное оформление",
-  workExperienceMonths: "опыт работы",
-  educationLevel: "уровень образования",
-  educationInstitution: "учебное заведение",
-  specialty: "специальность",
-  skills: "навыки",
-  languages: "языки",
-  hasDriverLicense: "водительские права",
-  desiredDirection: "желаемое направление",
-  householdSize: "состав семьи",
-  maritalStatus: "семейное положение",
-  isBreadwinner: "единственный кормилец",
-  streetBlock: "условная зона",
+const FIELD_LABEL_KEYS: Record<keyof EditableFormState, TranslationKey> = {
+  status: "edit.field.status",
+  activity: "edit.field.activity",
+  isFormalEmployment: "edit.field.isFormalEmployment",
+  workExperienceMonths: "edit.field.workExperienceMonths",
+  educationLevel: "edit.field.educationLevel",
+  educationInstitution: "edit.field.educationInstitution",
+  specialty: "edit.field.specialty",
+  skills: "edit.field.skills",
+  languages: "edit.field.languages",
+  hasDriverLicense: "edit.field.hasDriverLicense",
+  desiredDirection: "edit.field.desiredDirection",
+  householdSize: "edit.field.householdSize",
+  maritalStatus: "edit.field.maritalStatus",
+  isBreadwinner: "edit.field.isBreadwinner",
+  streetBlock: "edit.field.streetBlock",
 };
 
 function toFormState(person: Person): EditableFormState {
@@ -92,15 +93,19 @@ function arraysEqual(a: string[], b: string[]) {
   return a.every((v, i) => v === b[i]);
 }
 
-function getChangedLabels(before: EditableFormState, after: EditableFormState): string[] {
+function getChangedLabels(
+  before: EditableFormState,
+  after: EditableFormState,
+  t: (key: TranslationKey) => string,
+): string[] {
   const labels: string[] = [];
-  (Object.keys(FIELD_LABELS) as (keyof EditableFormState)[]).forEach((key) => {
+  (Object.keys(FIELD_LABEL_KEYS) as (keyof EditableFormState)[]).forEach((key) => {
     const prev = before[key];
     const next = after[key];
     if (Array.isArray(prev) && Array.isArray(next)) {
-      if (!arraysEqual(prev, next)) labels.push(FIELD_LABELS[key]);
+      if (!arraysEqual(prev, next)) labels.push(t(FIELD_LABEL_KEYS[key]));
     } else if (prev !== next) {
-      labels.push(FIELD_LABELS[key]);
+      labels.push(t(FIELD_LABEL_KEYS[key]));
     }
   });
   return labels;
@@ -111,7 +116,7 @@ function buildChanges(
   after: EditableFormState,
 ): Partial<PersonEditableFields> {
   const changes: Partial<PersonEditableFields> = {};
-  (Object.keys(FIELD_LABELS) as (keyof EditableFormState)[]).forEach((key) => {
+  (Object.keys(FIELD_LABEL_KEYS) as (keyof EditableFormState)[]).forEach((key) => {
     const prev = before[key];
     const next = after[key];
     if (Array.isArray(prev) && Array.isArray(next)) {
@@ -134,6 +139,8 @@ export function EditPersonDialog({
   onOpenChange: (open: boolean) => void;
   aiPrefill?: AiPrefill | null;
 }) {
+  const { t } = useLanguage();
+  const labels = useLabels();
   const { updatePerson } = useStore();
   const [form, setForm] = useState<EditableFormState>(() => toFormState(person));
   const [source, setSource] = useState<UpdateSource | "">("");
@@ -156,7 +163,10 @@ export function EditPersonDialog({
     }
   }, [open, person, aiPrefill]);
 
-  const changedLabels = useMemo(() => getChangedLabels(toFormState(person), form), [person, form]);
+  const changedLabels = useMemo(
+    () => getChangedLabels(toFormState(person), form, t),
+    [person, form, t],
+  );
   const hasChanges = changedLabels.length > 0;
   const canSave = hasChanges && source !== "";
 
@@ -191,46 +201,44 @@ export function EditPersonDialog({
       activePrefill?.historyTitle ? { historyTitle: activePrefill.historyTitle } : undefined,
     );
     onOpenChange(false);
-    toast.success("Данные обновлены");
+    toast.success(t("toast.dataUpdated"));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Редактирование сведений</DialogTitle>
+          <DialogTitle>{t("edit.title")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           <section>
-            <h3 className="text-sm font-semibold">Данные из реестров</h3>
+            <h3 className="text-sm font-semibold">{t("edit.registryData")}</h3>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <ReadOnlyField label="ФИО" value={person.fullName} />
-              <ReadOnlyField label="Дата рождения" value={formatDate(person.birthDate)} />
-              <ReadOnlyField label="Пол" value={person.gender} />
-              <ReadOnlyField label="Махалля" value={person.mahalla} />
+              <ReadOnlyField label={t("edit.fullName")} value={person.fullName} />
+              <ReadOnlyField label={t("person.field.birthDate")} value={labels.formatDate(person.birthDate)} />
+              <ReadOnlyField label={t("person.field.gender")} value={labels.gender(person.gender)} />
+              <ReadOnlyField label={t("person.field.mahalla")} value={person.mahalla} />
               <ReadOnlyField
-                label="Ёшлар дафтари"
-                value={person.inYoshlarDaftari ? "да" : "нет"}
+                label={t("edit.yoshlar")}
+                value={person.inYoshlarDaftari ? t("common.yes") : t("common.no")}
               />
               <ReadOnlyField
-                label="Аёллар дафтари"
-                value={person.inAyollarDaftari ? "да" : "нет"}
+                label={t("edit.ayollar")}
+                value={person.inAyollarDaftari ? t("common.yes") : t("common.no")}
               />
               <ReadOnlyField
-                label="Темир дафтар"
-                value={person.familyInTemirDaftar ? "да" : "нет"}
+                label={t("edit.temir")}
+                value={person.familyInTemirDaftar ? t("common.yes") : t("common.no")}
               />
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Изменяются только через синхронизацию с государственными реестрами
-            </p>
+            <p className="mt-3 text-xs text-muted-foreground">{t("edit.registryNote")}</p>
           </section>
 
           <section className="border-t border-border pt-6">
-            <h3 className="text-sm font-semibold">Данные, уточняемые сотрудником</h3>
+            <h3 className="text-sm font-semibold">{t("edit.editableData")}</h3>
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              <Field label="Статус занятости" highlighted={isHighlighted("status")}>
+              <Field label={t("create.employmentStatus")} highlighted={isHighlighted("status")}>
                 <Select value={form.status} onValueChange={(v) => set("status", v as Person["status"])}>
                   <SelectTrigger>
                     <SelectValue />
@@ -238,28 +246,30 @@ export function EditPersonDialog({
                   <SelectContent>
                     {STATUSES.filter((s) => s !== "Направлен на программу").map((s) => (
                       <SelectItem key={s} value={s}>
-                        {s}
+                        {labels.status(s)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </Field>
 
-              <Field label="Место работы / учёбы" highlighted={isHighlighted("activity")}>
+              <Field label={t("create.workplace")} highlighted={isHighlighted("activity")}>
                 <Input value={form.activity} onChange={(e) => set("activity", e.target.value)} />
               </Field>
 
-              <Field label="Официальное оформление" highlighted={isHighlighted("isFormalEmployment")}>
+              <Field label={t("create.official")} highlighted={isHighlighted("isFormalEmployment")}>
                 <div className="flex h-10 items-center gap-2">
                   <Switch
                     checked={form.isFormalEmployment}
                     onCheckedChange={(v) => set("isFormalEmployment", v)}
                   />
-                  <span className="text-sm">{form.isFormalEmployment ? "да" : "нет"}</span>
+                  <span className="text-sm">
+                    {form.isFormalEmployment ? t("common.yes") : t("common.no")}
+                  </span>
                 </div>
               </Field>
 
-              <Field label="Опыт работы в месяцах" highlighted={isHighlighted("workExperienceMonths")}>
+              <Field label={t("create.experienceMonths")} highlighted={isHighlighted("workExperienceMonths")}>
                 <Input
                   type="number"
                   min={0}
@@ -268,7 +278,7 @@ export function EditPersonDialog({
                 />
               </Field>
 
-              <Field label="Уровень образования" highlighted={isHighlighted("educationLevel")}>
+              <Field label={t("create.educationLevel")} highlighted={isHighlighted("educationLevel")}>
                 <Select
                   value={form.educationLevel}
                   onValueChange={(v) => set("educationLevel", v as Person["educationLevel"])}
@@ -279,25 +289,25 @@ export function EditPersonDialog({
                   <SelectContent>
                     {EDUCATION_LEVELS.map((l) => (
                       <SelectItem key={l} value={l}>
-                        {l}
+                        {labels.education(l)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </Field>
 
-              <Field label="Учебное заведение" highlighted={isHighlighted("educationInstitution")}>
+              <Field label={t("create.institution")} highlighted={isHighlighted("educationInstitution")}>
                 <Input
                   value={form.educationInstitution}
                   onChange={(e) => set("educationInstitution", e.target.value)}
                 />
               </Field>
 
-              <Field label="Специальность" highlighted={isHighlighted("specialty")}>
+              <Field label={t("create.specialty")} highlighted={isHighlighted("specialty")}>
                 <Input value={form.specialty} onChange={(e) => set("specialty", e.target.value)} />
               </Field>
 
-              <Field label="Желаемое направление" highlighted={isHighlighted("desiredDirection")}>
+              <Field label={t("create.desiredDirection")} highlighted={isHighlighted("desiredDirection")}>
                 <Select
                   value={form.desiredDirection}
                   onValueChange={(v) => set("desiredDirection", v as Person["desiredDirection"])}
@@ -308,14 +318,14 @@ export function EditPersonDialog({
                   <SelectContent>
                     {DESIRED_DIRECTIONS.map((d) => (
                       <SelectItem key={d} value={d}>
-                        {d}
+                        {labels.direction(d)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </Field>
 
-              <Field label="Состав семьи" highlighted={isHighlighted("householdSize")}>
+              <Field label={t("create.familySize")} highlighted={isHighlighted("householdSize")}>
                 <Input
                   type="number"
                   min={1}
@@ -327,7 +337,7 @@ export function EditPersonDialog({
                 />
               </Field>
 
-              <Field label="Семейное положение" highlighted={isHighlighted("maritalStatus")}>
+              <Field label={t("create.marital")} highlighted={isHighlighted("maritalStatus")}>
                 <Select
                   value={form.maritalStatus}
                   onValueChange={(v) => set("maritalStatus", v as Person["maritalStatus"])}
@@ -338,36 +348,40 @@ export function EditPersonDialog({
                   <SelectContent>
                     {MARITAL_STATUSES.map((s) => (
                       <SelectItem key={s} value={s}>
-                        {s}
+                        {labels.maritalCombined(s)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </Field>
 
-              <Field label="Условная зона" highlighted={isHighlighted("streetBlock")}>
+              <Field label={t("create.zone")} highlighted={isHighlighted("streetBlock")}>
                 <Input value={form.streetBlock} onChange={(e) => set("streetBlock", e.target.value)} />
               </Field>
 
-              <Field label="Единственный кормилец" highlighted={isHighlighted("isBreadwinner")}>
+              <Field label={t("person.field.breadwinner")} highlighted={isHighlighted("isBreadwinner")}>
                 <div className="flex h-10 items-center gap-2">
                   <Switch checked={form.isBreadwinner} onCheckedChange={(v) => set("isBreadwinner", v)} />
-                  <span className="text-sm">{form.isBreadwinner ? "да" : "нет"}</span>
+                  <span className="text-sm">
+                    {form.isBreadwinner ? t("common.yes") : t("common.no")}
+                  </span>
                 </div>
               </Field>
 
-              <Field label="Водительские права" highlighted={isHighlighted("hasDriverLicense")}>
+              <Field label={t("person.field.drivers")} highlighted={isHighlighted("hasDriverLicense")}>
                 <div className="flex h-10 items-center gap-2">
                   <Switch
                     checked={form.hasDriverLicense}
                     onCheckedChange={(v) => set("hasDriverLicense", v)}
                   />
-                  <span className="text-sm">{form.hasDriverLicense ? "да" : "нет"}</span>
+                  <span className="text-sm">
+                    {form.hasDriverLicense ? t("common.yes") : t("common.no")}
+                  </span>
                 </div>
               </Field>
 
               <div className={cn("sm:col-span-2", isHighlighted("skills") && "rounded-lg bg-[#eff6ff] p-2")}>
-                <Field label="Навыки">
+                <Field label={t("create.skills")}>
                   <div className="flex gap-2">
                     <Input
                       value={skillInput}
@@ -378,10 +392,10 @@ export function EditPersonDialog({
                           addSkill();
                         }
                       }}
-                      placeholder="Добавить навык"
+                      placeholder={t("create.addSkill")}
                     />
                     <Button type="button" variant="outline" onClick={addSkill}>
-                      Добавить
+                      {t("create.add")}
                     </Button>
                   </div>
                   {form.skills.length > 0 && (
@@ -404,7 +418,7 @@ export function EditPersonDialog({
               </div>
 
               <div className={cn("sm:col-span-2", isHighlighted("languages") && "rounded-lg bg-[#eff6ff] p-2")}>
-                <Field label="Языки">
+                <Field label={t("person.field.languages")}>
                   <div className="flex flex-wrap gap-4">
                     {LANGUAGE_POOL.map((lang) => (
                       <label key={lang} className="flex items-center gap-2 text-sm">
@@ -428,15 +442,15 @@ export function EditPersonDialog({
             </div>
           </section>
 
-          <Field label="Основание изменения">
+          <Field label={t("edit.changeBasis")}>
             <Select value={source} onValueChange={(v) => setSource(v as UpdateSource)}>
               <SelectTrigger>
-                <SelectValue placeholder="Выберите основание" />
+                <SelectValue placeholder={t("create.selectBasis")} />
               </SelectTrigger>
               <SelectContent>
                 {EDIT_UPDATE_SOURCES.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {s}
+                    {labels.source(s)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -446,10 +460,10 @@ export function EditPersonDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Отменить
+            {t("common.cancel")}
           </Button>
           <Button disabled={!canSave} onClick={save}>
-            Сохранить изменения
+            {t("edit.saveChanges")}
           </Button>
         </DialogFooter>
       </DialogContent>

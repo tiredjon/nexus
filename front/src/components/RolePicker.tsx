@@ -4,6 +4,7 @@ import { Radar, Building2, MapPin, Users, Briefcase, ShieldCheck } from "lucide-
 import { MAHALLAS, type Mahalla } from "@/lib/data";
 import { ROLE_CONFIG, MAIN_ROLES, type Role } from "@/lib/permissions";
 import { useStore } from "@/lib/store";
+import { useLanguage, useLabels } from "@/lib/i18n";
 import { Button } from "./ui/button";
 import {
   Select,
@@ -21,16 +22,11 @@ const ROLE_ICONS: Record<(typeof MAIN_ROLES)[number], React.ReactNode> = {
   employment_specialist: <Briefcase className="size-5" />,
 };
 
-const ROLE_SHORT_LABELS: Record<(typeof MAIN_ROLES)[number], string> = {
-  mahalla_officer: "Сотрудник махалли",
-  youth_rep: "Представитель по молодёжи",
-  district_officer: "Сотрудник хокимията района",
-  employment_specialist: "Специалист по занятости",
-};
-
 export function RolePicker() {
   const { signIn } = useStore();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const labels = useLabels();
   const [role, setRole] = useState<Role>("district_officer");
   const [mahalla, setMahalla] = useState<Mahalla>(MAHALLAS[0]);
 
@@ -45,13 +41,11 @@ export function RolePicker() {
           </div>
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Yoshlar Radar</h1>
-            <p className="text-sm text-muted-foreground">
-              Мониторинг занятости молодёжи · Мирзо-Улугбекский район
-            </p>
+            <p className="text-sm text-muted-foreground">{t("login.tagline")}</p>
           </div>
         </div>
 
-        <p className="mt-6 text-sm font-medium">Выберите роль для входа</p>
+        <p className="mt-6 text-sm font-medium">{t("login.chooseRole")}</p>
         <div className="mt-3 grid gap-2">
           {MAIN_ROLES.map((r) => (
             <RoleCard
@@ -59,15 +53,15 @@ export function RolePicker() {
               active={role === r}
               onClick={() => setRole(r)}
               icon={ROLE_ICONS[r]}
-              title={ROLE_SHORT_LABELS[r]}
+              title={labels.loginRole(r)}
             />
           ))}
         </div>
 
-        <p className="mt-2 text-center text-xs text-muted-foreground">{config.description}</p>
+        <p className="mt-2 text-center text-xs text-muted-foreground">{labels.roleDesc(role)}</p>
 
         <div className="mt-5 border-t border-border pt-5">
-          <p className="text-center text-xs text-muted-foreground">Технический доступ</p>
+          <p className="text-center text-xs text-muted-foreground">{t("login.techAccess")}</p>
           <button
             type="button"
             onClick={() => setRole("admin")}
@@ -80,14 +74,14 @@ export function RolePicker() {
           >
             <ShieldCheck className="size-5 shrink-0 text-muted-foreground" />
             <span className="text-sm font-semibold text-muted-foreground">
-              {ROLE_CONFIG.admin.shortLabel}
+              {t("role.admin.short")}
             </span>
           </button>
         </div>
 
         {config.needsMahallaSelect && (
           <div className="mt-4">
-            <label className="text-sm font-medium">Махалля</label>
+            <label className="text-sm font-medium">{t("login.mahalla")}</label>
             <Select value={mahalla} onValueChange={(v) => setMahalla(v as Mahalla)}>
               <SelectTrigger className="mt-1.5 w-full">
                 <SelectValue />
@@ -114,13 +108,10 @@ export function RolePicker() {
             navigate({ to: config.landing });
           }}
         >
-          Войти в систему
+          {t("login.enter")}
         </Button>
 
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          Демонстрационный прототип. Все данные синтетические, реальные персональные данные не
-          используются.
-        </p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">{t("login.disclaimer")}</p>
       </div>
     </div>
   );

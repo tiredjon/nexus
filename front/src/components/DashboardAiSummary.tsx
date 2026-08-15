@@ -2,6 +2,7 @@ import { Sparkles } from "lucide-react";
 import { buildDashboardStats, generateDashboardSummary } from "@/lib/ai";
 import type { Person } from "@/lib/data";
 import type { Role } from "@/lib/permissions";
+import { useLanguage } from "@/lib/i18n";
 import { AiBadge, AiError, AiLoading, AiTypewriter, useAiResult } from "@/components/ai";
 
 export function DashboardAiSummary({
@@ -17,6 +18,8 @@ export function DashboardAiSummary({
   mahalla?: string;
   syncedAt: Date;
 }) {
+  const { t, locale } = useLanguage();
+  const dateLocale = locale === "uz" ? "uz-UZ" : "ru-RU";
   const stats = buildDashboardStats(scopedPeople, allPeople, role, mahalla);
 
   const { loading, data, error, retry } = useAiResult(
@@ -24,21 +27,21 @@ export function DashboardAiSummary({
     [scopedPeople.length, role, mahalla, syncedAt.getTime()],
   );
 
-  const timeLabel = syncedAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const timeLabel = syncedAt.toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" });
 
   return (
     <section className="yr-card mb-6 border-l-[3px] border-l-[#4338ca] bg-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Sparkles className="size-4 text-[#4338ca]" />
-          Сводка по данным
+          {t("ai.summaryTitle")}
           <AiBadge />
         </div>
-        <span className="text-xs text-muted-foreground">обновлено {timeLabel}</span>
+        <span className="text-xs text-muted-foreground">{t("ai.updatedAt", { time: timeLabel })}</span>
       </div>
 
       <div className="mt-3">
-        {loading && <AiLoading label="Анализирую показатели" />}
+        {loading && <AiLoading label={t("ai.analyzing")} />}
         {error && <AiError onRetry={retry} />}
         {data && !loading && (
           <>
@@ -56,9 +59,7 @@ export function DashboardAiSummary({
         )}
       </div>
 
-      <p className="mt-3 text-xs text-muted-foreground">
-        Сводка сформирована по агрегированным показателям и носит информационный характер.
-      </p>
+      <p className="mt-3 text-xs text-muted-foreground">{t("ai.disclaimer")}</p>
     </section>
   );
 }

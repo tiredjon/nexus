@@ -194,6 +194,76 @@
   }
 }
 
+@property --yr-sidebar-w {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 260px;
+}
+
+.yr-app-layout {
+  min-height: 100vh;
+}
+
+@media (min-width: 1024px) {
+  .yr-app-layout {
+    display: grid;
+    grid-template-columns: var(--yr-sidebar-w) minmax(0, 1fr);
+    transition: grid-template-columns 180ms ease-out;
+    transform: translateZ(0);
+  }
+
+  html.is-sidebar-animating .yr-app-layout {
+    will-change: grid-template-columns;
+  }
+
+  html.is-sidebar-animating .yr-main-column {
+    contain: layout style paint;
+  }
+}
+
+.yr-sidebar-panel {
+  transform: translateZ(0);
+}
+
+.yr-sidebar-fade {
+  transition: opacity 180ms ease-out;
+  transform: translateZ(0);
+}
+
+.yr-nav-tip {
+  position: relative;
+}
+
+.yr-nav-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  z-index: 60;
+  translate: 0 -50%;
+  transform: translateZ(0);
+  border-radius: 0.375rem;
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+
+.yr-nav-tip:hover::after,
+.yr-nav-tip:focus-visible::after {
+  opacity: 1;
+}
+
+.yr-role-tip::after {
+  white-space: normal;
+  max-width: 220px;
+}
+
 .yr-page-enter {
   animation: yr-fade-up 200ms ease-out both;
 }
