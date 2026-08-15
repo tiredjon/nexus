@@ -56,13 +56,20 @@ dev-Postgres `5438` (не пересекается с фронтом на `8080`
 
 Готово (S1): каркас, схема БД (3 таблицы `mahallas`/`people`/`history_events`
 на text+CHECK, миграция `back/drizzle/0000_*.sql` с `pg_trgm` и partial/GIN
-индексами), `GET /health`, сидер v1 (12 махаллей), CI
-`.github/workflows/backend-ci.yml`. Запуск из `back/`:
+индексами), `GET /health`, CI `.github/workflows/backend-ci.yml`.
+
+Готово (S2): auth на `@fastify/jwt` (HS256, TTL 12ч; `src/plugins/auth.ts` +
+`authenticate` preHandler), `resolveScope` (`src/lib/scope.ts`),
+`POST/GET /api/auth/login|me`, `GET /api/meta/mahallas|dictionaries`,
+константы-порт из фронта (`src/db/constants.ts`), детерминированный сидер v2
+(`generatePeople` порт, `mulberry32(20260814)`; флаги `--count/--anchor/--append/
+--lightHistory`, батчи по 1000). Запуск из `back/`:
 
 ```bash
 cd back && npm install
 docker compose up -d          # postgres:16-alpine на :5438
-npm run migrate && npm run seed
+npm run migrate
+npm run seed -- --count 250   # людей 250 + история; --anchor для воспроизводимых дат
 npm run dev                   # http://localhost:3001 ; /health → {"status":"ok","db":"ok"}
 npm run typecheck && npm test
 ```

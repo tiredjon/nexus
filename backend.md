@@ -593,7 +593,36 @@ jobs:
     просто игнорирует флаг и сеет 12 махаллей — это ок для S1.
   - Локальный прогон зелёный: `docker compose up -d` → `migrate` → `seed` →
     `typecheck` → `test` (2/2) → boot+curl `/health` → `{"status":"ok","db":"ok"}`.
-- [ ] **S2** — auth + детерминированный сидер. PR: —
+- [x] **S2** — auth + детерминированный сидер. PR: #2
+  - `src/db/constants.ts` — порт из `front/src/lib/data.ts` дословно: `MAHALLAS`,
+    `MAHALLA_COORDS`, `STATUSES`, `REVIEW_STATUSES`, `PROGRAMS`, `GENDERS`,
+    `OUTCOMES`, пулы `MALE/FEMALE/SURNAMES/PATRON/JOBS/STUDIES/BUSINESS/OTHER`,
+    `mulberry32`, типы `Person`/`HistoryEvent`. Добавлен `MAHALLA_ID_BY_NAME`
+    (id = индекс+1) — словарь имя→id для сидера/скоупа.
+  - `src/plugins/auth.ts` — `@fastify/jwt` (HS256, `expiresIn:12h`), обёрнут в
+    `fastify-plugin`, чтобы декоратор `authenticate` и `app.jwt` были видны в
+    роут-плагинах с префиксом. Добавлена зависимость `fastify-plugin@^5`.
+  - `src/lib/scope.ts` (`resolveScope(req)` → `{role, mahallaName, mahallaId}`),
+    `src/routes/auth.ts` (пп.2–3: login с zod-валидацией, /me),
+    `src/routes/meta.ts` (пп.4–5). Роуты навешены под `/api` в `app.ts`; auth
+    прокинут `preHandler:[app.authenticate]` (login публичный).
+  - `scripts/seed.ts` **v2** — порт `generatePeople()` дословно (seed
+    `mulberry32(20260814)`). Флаги `--count` (деф.250), `--anchor YYYY-MM-DD`
+    (деф. сегодня; заменяет `Date.now()` для воспроизводимости), `--append`
+    (иначе `TRUNCATE people, history_events`), `--lightHistory` (≤2 события/чел).
+    Вставка батчами по 1000 (people → history) в транзакции на батч; махалли
+    апсертятся перед сидом.
+  - Тесты: `test/auth.test.ts` (11 — оба логина, плохая махалля/роль→400,
+    невалидная роль→400, round-trip `/me`, нет токена→401, `meta/mahallas`
+    порядок+401, форма `dictionaries`), `test/seed.test.ts` (4 — `seed --count 50`
+    подпроцессом → ровно 50 people, есть history, статусы валидны, 12 махаллей).
+    Хелперы: `seedMahallas`, `tokenFor`. Итого 17/17 зелёные.
+  - **Отклонения:** (1) `--lightHistory` опускает часть history-записей, но
+    **не меняет поток `rnd()`** (лишние вызовы сохранены вхолостую) — поля людей
+    идентичны в обоих режимах. (2) Добавлена не указанная явно зависимость
+    `fastify-plugin` — без неё декораторы JWT инкапсулируются и не видны роутам.
+  - Локальный прогон зелёный: `typecheck` → `migrate` → `seed --count 250/5000` →
+    `test` (17/17) → boot + smoke (login/me/meta/dictionaries, 401/400).
 - [ ] **S3** — реестр (`GET /api/people`, `/:id`). PR: —
 - [ ] **S4** — мутации (пп.8–11). PR: —
 - [ ] **S5** — агрегаты (`/api/stats/*`). PR: —
