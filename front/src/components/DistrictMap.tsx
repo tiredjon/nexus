@@ -18,7 +18,7 @@ import { useLanguage } from "@/lib/i18n";
 
 import regionsData from "@/data/geo/uzbekistan-regions.geojson";
 import districtsData from "@/data/geo/tashkent-districts.geojson";
-import { type Mahalla } from "@/lib/data";
+import { MAHALLAS, type Mahalla } from "@/lib/data";
 import { darken, mahallaColor, type ZoneColorMode } from "@/lib/mahalla-colors";
 import { buildMahallaZones } from "@/lib/mahallaVoronoi";
 import {
@@ -221,13 +221,12 @@ function MahallaZones({ stats, colorMode }: { stats: MahallaStat[]; colorMode: Z
   const navigate = useNavigate();
   const { t } = useLanguage();
 
-  // Геометрия зависит только от набора махаллей, а не от их статистики,
-  // поэтому пересчитываем её лишь когда меняется сам список.
-  const mahallaKey = stats.map((s) => s.mahalla).join("|");
-  const zones = useMemo(
-    () => buildMahallaZones(mahallaKey ? (mahallaKey.split("|") as Mahalla[]) : []),
-    [mahallaKey],
-  );
+  // Геометрию строим ВСЕГДА от всех махаллей: диаграмму Вороного нельзя
+  // считать от подмножества — один центр дал бы одну ячейку размером с целый
+  // район. Скоуп фильтрует только то, что рисуем: зоны без статистики
+  // отсекаются ниже (if (!s) return null), поэтому у сотрудника махалли
+  // остаётся ровно его зона правильной формы.
+  const zones = useMemo(() => buildMahallaZones([...MAHALLAS]), []);
 
   const statByMahalla = new Map(stats.map((s) => [s.mahalla, s]));
 
