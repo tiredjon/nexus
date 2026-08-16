@@ -1,0 +1,37 @@
+# Render Blueprint для бэкенда Yoshlar Radar (back/).
+# Поднимает Web Service (Fastify) + managed PostgreSQL и связывает их через
+# DATABASE_URL. Регион frankfurt — ближайший не-РФ к Ташкенту.
+#
+# Как применить: Render → Blueprints → New Blueprint Instance → выбрать репо
+# tiredjon/nexus. Секреты вводятся в дашборде (JWT_SECRET генерится
+# автоматически). Сид данных запускается один раз вручную — см. README/CLAUDE.md.
+
+databases:
+  - name: nexus-db
+    databaseName: nexus
+    user: nexus
+    plan: free
+    region: frankfurt
+
+services:
+  - type: web
+    name: nexus-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: back
+    # --include=dev обязателен: прод стартует через tsx, а он в devDependencies.
+    buildCommand: npm ci --include=dev
+    # migrate идемпотентен (drizzle трекает применённые миграции) — безопасно
+    # гонять на каждом старте. Сид (npm run seed) запускается отдельно, один раз.
+    startCommand: npm run migrate && npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nexus-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
