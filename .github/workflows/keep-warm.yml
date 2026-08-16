@@ -1,0 +1,32 @@
+# Пингер: не даёт free-сервису Render уснуть (спит после 15 мин простоя).
+# Дёргает /health каждые ~5 минут. Интервал 5, а не 10, с запасом — крон
+# GitHub Actions часто опаздывает, а окно сна всего 15 минут.
+#
+# Нужен в основном в день презентации. Не нужен — можно выключить workflow
+# в Actions или снести файл. Крон в GH Actions отключается сам после 60 дней
+# без активности в репозитории.
+name: keep-warm
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {} # можно дёрнуть вручную из вкладки Actions
+
+# URL бэка. Если пересоздашь сервис на Render и суффикс сменится — поправь тут.
+env:
+  BACKEND_URL: https://nexus-api-hjly.onrender.com/health
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend /health
+        run: |
+          # -m 90: холодный старт Render ~50с, даём запас.
+          for attempt in 1 2 3; do
+            code=$(curl -sS -m 90 -o /dev/null -w "%{http_code}" "$BACKEND_URL") && break
+            echo "Попытка $attempt не удалась, повтор через 10с..."
+            sleep 10
+          done
+          echo "HTTP $code"
+          test "$code" = "200"
