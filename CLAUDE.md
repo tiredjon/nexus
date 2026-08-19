@@ -37,14 +37,20 @@ npx tsc --noEmit
 
 ## Git
 
-Прямой push в `main` запрещён. Любая работа — ветка → PR → мерж только после
-зелёных чеков. Remote: `git@github.com:tiredjon/nexus.git`.
+**Работаем прямо в `main`: без веток, без PR.** Коммит → push в `main`.
+Remote: `git@github.com:tiredjon/nexus.git`.
 
-На момент написания рабочее дерево не закоммичено: помимо правок по карте там
-лежат несвязанные изменения (`front/AGENTS.md` удалён, `README.md`,
-`bunfig.toml`, `src/routes/__root.tsx`, `vite.config.ts`,
-`src/lib/lovable-error-reporting.ts`). Вопрос «собирать ветку только из правок
-по карте или коммитить всё» с пользователем не решён.
+Правило сменилось 20.08.2026 — раньше здесь требовались ветка → PR → зелёные
+чеки. Причина отказа: репозиторий оброс девятью ветками, восемь из которых были
+уже влиты squash'ем, и понять по `git log`, что влито, стало невозможно (squash
+переписывает хеши, поэтому влитые ветки показываются как невлитые — сверять надо
+`git cherry` по patch-id). Плюс PR-гейт ничего не давал фронту: CI
+(`.github/workflows/backend-ci.yml`) покрывает только `back/`.
+
+Раз CI фронт не страхует — проверяй правки фронта сам перед push: `npx tsc
+--noEmit` (2 известные ошибки ниже — норма) и живая проверка в headless Chrome
+по рецепту из раздела «Как проверять карту в браузере». По бэку остаются тесты:
+`npm test` в `back/`.
 
 ## ИИ-фичи (`front/src/lib/ai.ts`)
 
@@ -160,10 +166,8 @@ npm run dev                   # http://localhost:3001 ; /health → {"status":"o
 npm run typecheck && npm test
 ```
 
-Git по бэкенду: ветка `back/s<N>-<slug>` → PR → мерж только после зелёного CI
-(`gh pr checks --watch`, затем `gh pr merge --squash --delete-branch`, без
-`--auto`). Коммить только `back/ .github/ backend.md CLAUDE.md` — в дереве есть
-несвязанные правки фронта, `git add -A` не делать.
+Git по бэкенду — как и везде: коммит прямо в `main`, веток и PR нет (см. раздел
+«Git»). Перед push прогоняй `npm run typecheck && npm test` в `back/`.
 
 ## Карта района (`/map`) — главное
 
