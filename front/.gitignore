@@ -2,6 +2,8 @@ node_modules/
 .output/
 dist/
 .vite/
+# Выхлоп `npm run build` для Vercel-пресета (~5 МБ) — генерируется, не хранится
+.vercel/
 .DS_Store
 *.local
 
