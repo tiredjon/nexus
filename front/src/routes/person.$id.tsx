@@ -11,6 +11,7 @@ import {
   BookOpen,
   Dot,
   Pencil,
+  Send,
 } from "lucide-react";
 import { useStore, useRoleConfig } from "@/lib/store";
 import { PROGRAMS, daysAgo, formatWorkExperience, type Person, type Program } from "@/lib/data";
@@ -19,6 +20,7 @@ import { EmptyState, NeetBadge, StatusBadge } from "@/components/common";
 import { EditPersonDialog, type AiPrefill } from "@/components/EditPersonDialog";
 import { FieldNoteSection } from "@/components/FieldNoteSection";
 import { OpportunityMatch } from "@/components/OpportunityMatch";
+import { RecommendationReason } from "@/components/RecommendationReason";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,7 +123,8 @@ function PersonPage() {
           </div>
           {(roleConfig?.can.confirmStatus ||
             roleConfig?.can.requestClarification ||
-            roleConfig?.can.editProfile) && (
+            roleConfig?.can.editProfile ||
+            roleConfig?.can.routeToProgram) && (
             <div className="flex flex-wrap gap-2">
               {roleConfig?.can.editProfile && (
                 <Button variant="outline" onClick={() => setEditOpen(true)}>
@@ -152,6 +155,15 @@ function PersonPage() {
                   }}
                 >
                   <CircleHelp className="size-4" /> {t("person.requestClarification")}
+                </Button>
+              )}
+              {/* Кнопка-триггер диалога направления. Была потеряна: сам диалог,
+                  обработчик routeToProgram, разрешение can.routeToProgram и
+                  ключи перевода на месте, а setOpen(true) не звал никто — из-за
+                  этого весь блок направления был недостижим. */}
+              {roleConfig?.can.routeToProgram && (
+                <Button onClick={() => setOpen(true)}>
+                  <Send className="size-4" /> {t("person.route")}
                 </Button>
               )}
             </div>
@@ -307,6 +319,9 @@ function PersonPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {/* Обоснование пересчитывается на каждую смену программы в
+                  селекте — program входит в deps внутри компонента. */}
+              <RecommendationReason person={person} program={program} />
             </div>
             <div>
               <label className="text-sm font-medium">{t("person.routeDialog.comment")}</label>
