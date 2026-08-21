@@ -105,7 +105,7 @@ export function FieldNoteSection({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [result, setResult] = useState<ParsedNote | null>(null);
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
 
   const canParse = note.trim().length >= 15;
 
@@ -115,7 +115,7 @@ export function FieldNoteSection({
     setError(false);
     setResult(null);
     try {
-      const parsed = await parseFieldNote(note, person);
+      const parsed = await parseFieldNote(note, person, locale);
       setResult(parsed);
     } catch {
       setError(true);

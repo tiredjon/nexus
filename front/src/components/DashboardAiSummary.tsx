@@ -23,8 +23,8 @@ export function DashboardAiSummary({
   const stats = buildDashboardStats(scopedPeople, allPeople, role, mahalla);
 
   const { loading, data, error, retry } = useAiResult(
-    () => generateDashboardSummary(stats, role),
-    [scopedPeople.length, role, mahalla, syncedAt.getTime()],
+    () => generateDashboardSummary(stats, role, locale),
+    [scopedPeople.length, role, mahalla, syncedAt.getTime(), locale],
   );
 
   const timeLabel = syncedAt.toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" });

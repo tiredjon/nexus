@@ -1,9 +1,15 @@
 // ИИ-фичи фронта. Публичные функции ходят в LLM (Gemini) через серверную
 // обёртку (aiGenerate), а при любой ошибке (нет ключа, лимит 429, кривой JSON)
 // тихо падают на детерминированные *Fallback ниже — так фичи всегда что-то
-// показывают. Контракт функций фиксирован: компоненты не трогаем.
+// показывают.
+//
+// Каждая функция принимает locale: язык ответа модели идёт от переключателя
+// RU/UZ в интерфейсе. Без этого на узбекской версии дашборда сводка приходила
+// бы по-русски. ВНИМАНИЕ: *Fallback остались русскоязычными — если модель не
+// ответит на узбекской версии, заглушка будет на русском.
 
 import { aiGenerate } from "./ai-server";
+import type { Locale } from "./i18n";
 import {
   COURSE_BY_ID,
   JOB_BY_ID,
@@ -481,17 +487,28 @@ export function buildAnalyticsStats(people: Person[], territory?: string): Analy
 const aiCache = new Map<string, unknown>();
 
 // Схемы ответов (подмножество OpenAPI). Структуру ответа мы диктуем прямо в
-// промпте + включаем JSON-режим Gemini; сами объекты схем передаём в aiGenerate
-// для совместимости (сейчас они не используются, но при смене провайдера или
-// переходе на responseSchema пригодятся).
+// промпте, но форму гарантирует уже сам Gemini: эти объекты уходят в него как
+// responseSchema. Поля перестают теряться, и код не сваливается в фолбэк из-за
+// неполного JSON. Побочный плюс — ответ быстрее, модели не надо «додумывать»
+// структуру.
+// Инструкция про язык вставляется в каждый промпт. Для узбекского явно просим
+// латиницу: интерфейс на латинице, а модель без уточнения иногда уходит в
+// кириллицу, и страница получается разнобоем.
+const LANG_RULE: Record<Locale, string> = {
+  ru: "Пиши по-русски.",
+  uz: "Javobni o'zbek tilida, lotin alifbosida yoz (kirill emas).",
+};
+
 const strArr = { type: "array", items: { type: "string" } };
 const SCHEMA_NOTE = {
   type: "object",
   properties: {
     status: { type: "string" },
-    activityDetail: { type: "string" },
-    need: { type: "string" },
-    direction: { type: "string" },
+    // nullable обязателен: под схемой без него модель обязана выдать строку и
+    // на пустом месте начнёт выдумывать потребность, которой в заметке нет.
+    activityDetail: { type: "string", nullable: true },
+    need: { type: "string", nullable: true },
+    direction: { type: "string", nullable: true },
     flags: strArr,
     confidence: { type: "string" },
   },
@@ -554,7 +571,11 @@ const CONFIDENCE_VALUES: ParsedNote["confidence"][] = ["высокая", "сре
 const asStringOrNull = (v: unknown): string | null =>
   typeof v === "string" && v.trim() ? v.trim() : null;
 
-export async function parseFieldNote(text: string, person: Person): Promise<ParsedNote> {
+export async function parseFieldNote(
+  text: string,
+  person: Person,
+  locale: Locale = "ru",
+): Promise<ParsedNote> {
   const prompt = `Ты — ассистент сотрудника хокимията по учёту занятости молодёжи. Разбери свободную заметку с подворного обхода в структуру.
 
 Текущие данные человека:
@@ -571,12 +592,15 @@ export async function parseFieldNote(text: string, person: Person): Promise<Pars
   "activityDetail": короткое описание деятельности или null,
   "need": выявленная потребность (например "Профессиональное обучение") или null,
   "direction": желаемое направление (например "Сварочное дело", "Цифровые навыки") или null,
-  "flags": массив коротких пометок-рисков на русском (например "занятость без оформления"), возможно пустой,
+  "flags": массив коротких пометок-рисков (например "занятость без оформления"), возможно пустой,
   "confidence": "высокая" | "средняя" | "низкая"
 }
+ВАЖНО: "status" и "confidence" — это коды из перечисленных списков, копируй их
+дословно по-русски и НЕ переводи. ${LANG_RULE[locale]} Это правило языка
+касается только свободных полей: activityDetail, need, direction, flags.
 Опирайся только на текст заметки. Если данных мало — confidence "низкая".`;
 
-  const cacheKey = `note:${person.id}:${text}`;
+  const cacheKey = `note:${locale}:${person.id}:${text}`;
   const cached = aiCache.get(cacheKey);
   if (cached !== undefined) return cached as ParsedNote;
 
@@ -618,12 +642,16 @@ export async function parseFieldNote(text: string, person: Person): Promise<Pars
   }
 }
 
-export async function explainRecommendation(person: Person, program: Program): Promise<string> {
+export async function explainRecommendation(
+  person: Person,
+  program: Program,
+  locale: Locale = "ru",
+): Promise<string> {
   const experience =
     person.workExperienceMonths > 0
       ? formatWorkExperience(person.workExperienceMonths)
       : "отсутствует";
-  const prompt = `Ты — специалист службы занятости. Объясни в 1–2 предложениях на русском, почему молодому человеку подходит программа «${program}». Официальный деловой стиль, без воды и без markdown.
+  const prompt = `Ты — специалист службы занятости. Объясни в 1–2 предложениях, почему молодому человеку подходит программа «${program}». ${LANG_RULE[locale]} Официальный деловой стиль, без воды и без markdown.
 
 Профиль:
 - возраст ${person.age}, образование ${person.educationLevel}
@@ -634,7 +662,7 @@ export async function explainRecommendation(person: Person, program: Program): P
 
 Верни только текст объяснения, одним абзацем.`;
 
-  const cacheKey = `rec:${person.id}:${program}:${person.lastUpdate}`;
+  const cacheKey = `rec:${locale}:${person.id}:${program}:${person.lastUpdate}`;
   const cached = aiCache.get(cacheKey);
   if (cached !== undefined) return cached as string;
 
@@ -660,6 +688,7 @@ const ROLE_LABELS: Record<Role, string> = {
 export async function generateDashboardSummary(
   stats: DashboardStats,
   role: Role,
+  locale: Locale = "ru",
 ): Promise<{ headline: string; points: string[] }> {
   const compact = {
     территория: stats.mahalla ?? "весь район",
@@ -685,9 +714,9 @@ ${JSON.stringify(compact)}
 
 Верни СТРОГО JSON:
 { "headline": "одно ёмкое предложение с ключевой цифрой", "points": ["тезис 1", "тезис 2", "тезис 3"] }
-Пиши по-русски, официально. Каждый тезис — с конкретной цифрой из данных. Ровно 3 тезиса.`;
+${LANG_RULE[locale]} Пиши официально. Каждый тезис — с конкретной цифрой из данных. Ровно 3 тезиса.`;
 
-  const cacheKey = `dash:${role}:${stats.mahalla ?? ""}:${stats.total}:${stats.neet}:${stats.stale}:${stats.routed}:${stats.neetTrendDelta}`;
+  const cacheKey = `dash:${locale}:${role}:${stats.mahalla ?? ""}:${stats.total}:${stats.neet}:${stats.stale}:${stats.routed}:${stats.neetTrendDelta}`;
   const cached = aiCache.get(cacheKey);
   if (cached !== undefined) return cached as { headline: string; points: string[] };
 
@@ -711,6 +740,7 @@ ${JSON.stringify(compact)}
 export async function generateOfficialReport(
   stats: AnalyticsStats,
   period: string,
+  locale: Locale = "ru",
 ): Promise<{ title: string; sections: { heading: string; body: string }[] }> {
   const periodLabel = PERIOD_LABELS[period] ?? period;
   const territory = stats.territory ?? "Мирзо-Улугбекского района";
@@ -721,9 +751,9 @@ ${JSON.stringify(stats)}
 
 Верни СТРОГО JSON:
 { "title": "заголовок справки", "sections": [ { "heading": "1. Общие показатели", "body": "..." } ] }
-Сделай ровно 6 разделов: (1) общие показатели; (2) выявление и проверка случаев; (3) направление на меры поддержки; (4) результативность программ; (5) актуальность данных по махаллям; (6) выводы и предложения. Официальный канцелярский стиль, без markdown, каждый body — связный абзац с конкретными цифрами.`;
+Сделай ровно 6 разделов: (1) общие показатели; (2) выявление и проверка случаев; (3) направление на меры поддержки; (4) результативность программ; (5) актуальность данных по махаллям; (6) выводы и предложения. ${LANG_RULE[locale]} Заголовки разделов тоже переводи, нумерацию сохраняй. Официальный канцелярский стиль, без markdown, каждый body — связный абзац с конкретными цифрами.`;
 
-  const cacheKey = `report:${period}:${territory}:${stats.total}:${stats.neet}:${stats.routed}:${stats.stale}`;
+  const cacheKey = `report:${locale}:${period}:${territory}:${stats.total}:${stats.neet}:${stats.routed}:${stats.stale}`;
   const cached = aiCache.get(cacheKey);
   if (cached !== undefined) return cached as { title: string; sections: { heading: string; body: string }[] };
 
@@ -787,8 +817,11 @@ function recommendOpportunitiesFallback(person: Person): OpportunityMatch {
   return { jobs, courses };
 }
 
-export async function recommendOpportunities(person: Person): Promise<OpportunityMatch> {
-  const cacheKey = `opp:${person.id}:${person.lastUpdate}:${person.skills.join("|")}:${person.desiredDirection}`;
+export async function recommendOpportunities(
+  person: Person,
+  locale: Locale = "ru",
+): Promise<OpportunityMatch> {
+  const cacheKey = `opp:${locale}:${person.id}:${person.lastUpdate}:${person.skills.join("|")}:${person.desiredDirection}`;
   const cached = aiCache.get(cacheKey);
   if (cached !== undefined) return cached as OpportunityMatch;
 
@@ -813,7 +846,7 @@ ${courseCands.map((c) => `${c.id}: ${c.title}, даёт: ${c.skillsGained.join("
 
 Верни СТРОГО JSON:
 { "jobs": [ { "id": "J-01", "reason": "одна фраза почему подходит" } ], "courses": [ { "id": "C-03", "reason": "одна фраза" } ] }
-До 3 вакансий и до 3 курсов. Если подходящих вакансий нет (мало навыков) — верни пустой jobs и сделай упор на курсы. reason — по-русски, конкретно, со ссылкой на навык или направление человека. НЕ упоминай в reason коды/идентификаторы позиций (J-01, C-03 и т.п.) — пиши по смыслу.`;
+До 3 вакансий и до 3 курсов. Если подходящих вакансий нет (мало навыков) — верни пустой jobs и сделай упор на курсы. Поле "id" копируй дословно из списков выше, оно не переводится. ${LANG_RULE[locale]} — это касается поля reason: конкретно, со ссылкой на навык или направление человека. НЕ упоминай в reason коды/идентификаторы позиций (J-01, C-03 и т.п.) — пиши по смыслу.`;
 
   try {
     const raw = await aiGenerate({ data: { prompt, json: true, temperature: 0.3, schema: SCHEMA_OPPORTUNITIES } });

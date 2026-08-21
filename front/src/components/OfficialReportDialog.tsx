@@ -34,7 +34,7 @@ export function OfficialReportDialog({
   onOpenChange: (open: boolean) => void;
   people: Person[];
 }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const labels = useLabels();
   const [period, setPeriod] = useState("month");
   const [territory, setTerritory] = useState("all");
@@ -61,7 +61,7 @@ export function OfficialReportDialog({
           ? t("report.territoryDistrict")
           : t("report.territoryMahalla", { name: territory });
       const stats = buildAnalyticsStats(scopedPeople, territoryLabel);
-      const result = await generateOfficialReport(stats, period);
+      const result = await generateOfficialReport(stats, period, locale);
       setDoc(result);
       setVisibleSections(1);
     } catch {

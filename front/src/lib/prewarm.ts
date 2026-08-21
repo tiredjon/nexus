@@ -14,9 +14,14 @@ import { useStore } from "@/lib/store";
 // Прогрев fire-and-forget: ошибки глушим, он полностью опционален. Карточки
 // людей персональные — их прогреть заранее нельзя, открой нужную вручную перед
 // показом (результат тоже закэшируется).
+//
+// Греется только язык, активный при входе (done.current пускает эффект один
+// раз). После переключения RU/UZ кэш под новый язык пустой и первая сводка
+// подгрузится с задержкой — если демо идёт на узбекском, переключи язык до
+// входа, а не после.
 export function usePrewarmAi() {
   const { session, people, scopedPeople } = useStore();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const done = useRef(false);
 
   useEffect(() => {
@@ -29,9 +34,9 @@ export function usePrewarmAi() {
       session.role,
       session.mahalla ?? undefined,
     );
-    void generateDashboardSummary(dashStats, session.role).catch(() => {});
+    void generateDashboardSummary(dashStats, session.role, locale).catch(() => {});
 
     const reportStats = buildAnalyticsStats(people, t("report.territoryDistrict"));
-    void generateOfficialReport(reportStats, "month").catch(() => {});
-  }, [session, people, scopedPeople, t]);
+    void generateOfficialReport(reportStats, "month", locale).catch(() => {});
+  }, [session, people, scopedPeople, t, locale]);
 }

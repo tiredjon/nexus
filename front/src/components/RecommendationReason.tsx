@@ -4,10 +4,10 @@ import { useLanguage } from "@/lib/i18n";
 import { AiBadge, AiError, AiLoading, AiTypewriter, useAiResult } from "@/components/ai";
 
 export function RecommendationReason({ person, program }: { person: Person; program: Program }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const { loading, data, error, retry } = useAiResult(
-    () => explainRecommendation(person, program),
-    [person.id, program, person.lastUpdate],
+    () => explainRecommendation(person, program, locale),
+    [person.id, program, person.lastUpdate, locale],
   );
 
   if (loading) return <AiLoading label={t("recReason.loading")} />;

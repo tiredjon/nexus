@@ -7,10 +7,10 @@ import { AiBadge, AiError, AiLoading, AiTypewriter, useAiResult } from "@/compon
 // ИИ-подбор реальных вакансий и курсов из каталога (src/lib/opportunities.ts)
 // под профиль человека. Логика и парсинг — в recommendOpportunities.
 export function OpportunityMatch({ person }: { person: Person }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const { loading, data, error, retry } = useAiResult(
-    () => recommendOpportunities(person),
-    [person.id, person.lastUpdate, person.skills.join(","), person.desiredDirection],
+    () => recommendOpportunities(person, locale),
+    [person.id, person.lastUpdate, person.skills.join(","), person.desiredDirection, locale],
   );
 
   return (
