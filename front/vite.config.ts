@@ -50,7 +50,13 @@ export default defineConfig(({ command, mode }) => {
       },
       server: { entry: "server" },
     }),
-    ...(command === "build" ? [nitro({ defaultPreset: "vercel" })] : []),
+    // maxDuration задаём здесь, а не в vercel.json: nitro собирает Build Output
+    // API (.vercel/output), и поле functions из vercel.json туда не доезжает.
+    // 60 с — потолок Hobby-плана; дефолтные 10 с малы, самая тяжёлая ИИ-фича
+    // (официальная справка) отвечает за 6–7 с и с ретраем упирается в лимит.
+    ...(command === "build"
+      ? [nitro({ defaultPreset: "vercel", vercel: { functions: { maxDuration: 60 } } })]
+      : []),
     viteReact(),
   ];
 

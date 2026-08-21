@@ -61,18 +61,26 @@ Remote: `git@github.com:tiredjon/nexus.git`.
 — API-ключ в браузер не утекает). При любой ошибке фичи тихо падают на
 детерминированные `*Fallback` в `ai.ts`, поэтому всегда что-то показывают.
 
-**Провайдер — DeepSeek, а не Gemini.** Причина принципиальная: прод-сервер в
-РФ, а Google блокирует Gemini по стране egress-IP (`User location is not
-supported`) — на российском хосте он мёртв. DeepSeek (OpenAI-совместимый) из РФ
-доступен. Не переводи обратно на Gemini/OpenAI без решения этой проблемы.
+**Провайдер — Google Gemini** (с 20.08.2026; до этого был DeepSeek — прошлая
+реализация в git-истории `ai-server.ts`). Переключено потому, что у нас на руках
+рабочий ключ Gemini, а ключа DeepSeek нет.
 
-- Модель по умолчанию `deepseek-v4-pro` (`DEEPSEEK_MODEL` в `front/.env`, ключ
-  `DEEPSEEK_API_KEY`). Pro «думает» перед ответом → латентность ~10–30с; если
-  на демо нужна скорость — `deepseek-v4-flash` (одна строка в `.env`).
-- У DeepSeek V4 reasoning уходит в отдельное поле `reasoning_content`, а
-  `message.content` — чистый JSON, его и парсим. JSON гарантируется
-  `response_format: json_object` + структурой прямо в промпте (у DeepSeek нет
-  `responseSchema`, объекты `SCHEMA_*` в `ai.ts` сейчас декоративные).
+**Оговорка про хостинг остаётся в силе:** Google блокирует Gemini по стране
+egress-IP (`User location is not supported`), поэтому с российского сервера
+фичи молча уйдут в фолбэк. Локально и на Vercel работает. Если прод переедет
+в РФ — нужен прокси или возврат к DeepSeek.
+
+- Модель по умолчанию `gemini-3.7-flash` (`GEMINI_MODEL` в `front/.env`, ключ
+  `GEMINI_API_KEY`). Запасная стабильная — `gemini-2.5-flash` (одна строка
+  в `.env`), обе проверены в JSON-режиме.
+- Ключ уходит заголовком **`x-goog-api-key`**. В `Authorization: Bearer` тот же
+  ключ отдаёт 401 `API_KEY_SERVICE_BLOCKED` — там API ждёт OAuth-токен.
+- Версия API — **`v1alpha`**, не `v1beta`: модели 3.x на `v1beta` отвечают 404.
+- Flash 3.x «думает»: в ответе часть элементов `content.parts` помечена
+  `thought: true` — это размышления, не ответ. Берём только части без этого
+  флага, иначе мышление попадёт в `JSON.parse`. JSON гарантируется
+  `responseMimeType: application/json` + структурой прямо в промпте
+  (`responseSchema` не используем, объекты `SCHEMA_*` в `ai.ts` декоративные).
 - Смена провайдера изолирована в `ai-server.ts` — трогается один файл, `ai.ts`
   и компоненты нет.
 - Успешные ответы кэшируются в памяти модуля на сессию. Тяжёлые (справка,
@@ -81,6 +89,26 @@ supported`) — на российском хосте он мёртв. DeepSeek (
   вручную перед показом, ответ закэшируется.
 - `.env` (с ключом) в git не коммитим — он в `.gitignore`; шаблон —
   `front/.env.example`.
+
+### Деплой фронта на Vercel
+
+Проект — `yoshlar-radar` (создан 21.08.2026, `front/.vercel/project.json`).
+Деплоим **туда, а не в РФ**, иначе Gemini отвалится по гео-блоку.
+
+- `GEMINI_API_KEY` и `GEMINI_MODEL` заведены в Vercel на все три окружения
+  (production/preview/development). `.env` не деплоится, на проде работает
+  только `process.env` — fs-фолбэк из `getKey()` в serverless-бандле мёртв.
+- **`maxDuration` задаётся в `vite.config.ts`** через
+  `nitro({ vercel: { functions: { maxDuration: 60 } } })`, а не в `vercel.json`:
+  nitro собирает Build Output API, и поле `functions` из `vercel.json` туда не
+  доезжает. Проверять так: `.vercel/output/functions/__server.func/.vc-config.json`.
+  Дефолтные 10 с мало — справка отвечает 6–7 с и с ретраем упирается в лимит.
+- Общий бюджет ретраев в `ai-server.ts` (`TOTAL_BUDGET_MS` 45 с) держим **ниже**
+  `maxDuration`: если функцию убьют по лимиту, фолбэк не успеет выполниться и
+  пользователь увидит вечный спиннер вместо заглушки.
+- `vercel link` дописывает в `front/.gitignore` строки `.vercel` и `.env*`.
+  Вторая идёт после `!.env.example` и утаскивает шаблон под игнор — порядок
+  правил поправлен, при повторном `link` проверь снова.
 
 ## Бэкенд (`back/`)
 
